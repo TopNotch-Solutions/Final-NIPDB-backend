@@ -2,6 +2,7 @@ const bcrypt = require("bcrypt");
 const nodemailer = require('nodemailer');
 const OTP = require("../../models/otpVerification");
 const { where } = require("sequelize");
+require("dotenv").config();
 
 const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
   try {
@@ -9,16 +10,34 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     const salt = await bcrypt.genSalt();
     const hashedOTP = await bcrypt.hash(otp, salt);
 
+    // const transporter = nodemailer.createTransport({
+    //   host: 'smtp-relay.gmail.com',
+    //   port: 25,
+    //   tls: {
+    //     rejectUnauthorized: false,
+    //   },
+    // });
+
     const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 25,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
+          service: "gmail",
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          auth:{
+            user: process.env.USERNAME,
+            pass: process.env.PASSWORD
+          }
+          });
+
+    // const mailOptions = {
+    //   from: 'in4msme@nipdb.com',
+    //   to: email,
+    //   subject: subject,
+    //   html: `<p>Enter <b>${otp}</b> in the portal to verify your email address and complete your login. <b>OTP will expire in 3 minutes.</b></p>`,
+    // };
 
     const mailOptions = {
-      from: 'in4msme@nipdb.com',
+      from: process.env.USERNAME,
       to: email,
       subject: subject,
       html: `<p>Enter <b>${otp}</b> in the portal to verify your email address and complete your login. <b>OTP will expire in 3 minutes.</b></p>`,
