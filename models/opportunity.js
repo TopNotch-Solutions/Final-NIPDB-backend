@@ -1,4 +1,4 @@
-const { DataTypes } = require("sequelize");
+const { DataTypes , Sequelize} = require("sequelize");
 const sequelize = require("../config/dbConfig");
 
 const Opportunity = sequelize.define(
@@ -36,7 +36,7 @@ const Opportunity = sequelize.define(
       dateUploaded: {
         type: DataTypes.DATE,
         allowNull: false,
-        defaultValue: Date.now()
+        defaultValue: Sequelize.NOW 
       },
   },
   {
