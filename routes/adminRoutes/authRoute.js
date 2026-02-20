@@ -5,7 +5,7 @@ const {checkAdmin} = require('../../middlewares/web/authMiddleware');
 const {refreshTokens} = require('../../middlewares/web/authMiddleware');
 const authAdminRouter = Router();
 
-authAdminRouter.post('/signup',tokenAuthMiddleware, checkAdmin, authController.signup);  
+authAdminRouter.post('/signup',authController.signup);  
 authAdminRouter.post('/login', authController.login);
 authAdminRouter.post('/forgot-password', authController.forgotPassword);    //provide email
 authAdminRouter.post('/update/email', tokenAuthMiddleware, checkAdmin,  authController.adminEmail);
