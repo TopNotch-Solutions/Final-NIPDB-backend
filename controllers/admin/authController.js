@@ -12,6 +12,7 @@ const User = require("../../models/user");
 const OTP = require("../../models/otpVerification");
 const { Op, where } = require("sequelize");
 const sendAdminOTPVerification = require("../../utils/web/sendAdminOtp");
+require("dotenv").config();
 
 exports.signup = async (req, res) => {
   const { firstName, lastName, email, department, contactNumber, role } =
@@ -58,16 +59,35 @@ exports.signup = async (req, res) => {
       role: formattedRole,
     });
     console.log("here is the password", password)
+    // const transporter = nodemailer.createTransport({
+    //   host: 'smtp-relay.gmail.com',
+    //   port: 25,
+    //   tls: {
+    //     rejectUnauthorized: false,
+    //   },
+    // });
     const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 25,
-      tls: {
-        rejectUnauthorized: false,
-      },
+      service: "gmail",
+      host: 'smtp.gmail.com',
+      port: 587,
+      secure: false,
+      auth:{
+        user: process.env.USERNAME,
+        pass: process.env.PASSWORD
+      }
+      // tls: {
+      //   rejectUnauthorized: false,
+      // },
     });
 
+    // const mailOptions = {
+    //   from: 'in4msme@nipdb.com',
+    //   to: email,
+    //   subject: "In4Msme Portal Onboarding",
+    //   html: `<p>${newUser.firstName} ${newUser.lastName}, Here is your password <b>${password}</b>. Do not share it with anyone.</p>`,
+    // };
     const mailOptions = {
-      from: 'in4msme@nipdb.com',
+      from:  process.env.USERNAME,
       to: email,
       subject: "In4Msme Portal Onboarding",
       html: `<p>${newUser.firstName} ${newUser.lastName}, Here is your password <b>${password}</b>. Do not share it with anyone.</p>`,
