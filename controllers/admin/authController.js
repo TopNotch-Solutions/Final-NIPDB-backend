@@ -57,7 +57,7 @@ exports.signup = async (req, res) => {
       contactNumber,
       role: formattedRole,
     });
-
+    console.log("here is the password", password)
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.gmail.com',
       port: 25,
@@ -76,7 +76,7 @@ exports.signup = async (req, res) => {
     transporter.sendMail(mailOptions, async (error, info) => {
       if (error) {
         console.error("Email error:", error);
-        await Admin.destroy({ where: { email } });
+        //await Admin.destroy({ where: { email } });
         return res.status(500).json({
           status: "FAILURE",
           message: "Internal server error: " + error.message,
