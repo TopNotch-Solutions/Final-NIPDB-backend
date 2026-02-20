@@ -53,14 +53,9 @@ const Admin = sequelize.define(
                 msg: "Role must be either 'Admin' or 'Super admin'"
               }
             }
-          },
-          createdAt: {
-            type: DataTypes.DATE, 
-            allowNull: true,
-            defaultValue: Date.now()
-          },
+          }
     },{
-        timestamps: false 
+        timestamps: true 
       }
 );
 
