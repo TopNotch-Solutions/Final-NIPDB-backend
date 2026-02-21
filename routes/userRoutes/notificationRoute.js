@@ -7,7 +7,7 @@ const {checkUser} = require("../../middlewares/mobile/authMiddleware");
 notificationUserRouter.get('/notifications/all', tokenAuthMiddleware, checkUser, notificationController.allUserNotfication);
 notificationUserRouter.get('/notifications/unread', tokenAuthMiddleware, checkUser, notificationController.unreadNotification);
 notificationUserRouter.get('/notifications/read', tokenAuthMiddleware, checkUser, notificationController.readNotification);
-notificationUserRouter.get('/totalNotificationCount', tokenAuthMiddleware, checkUser, notificationController.totalNotficationCount);
+notificationUserRouter.get('/totalNotificationCount', tokenAuthMiddleware, checkUser, notificationController.totalNotificationCount);
 
 notificationUserRouter.put('/update/:notificationId',tokenAuthMiddleware, checkUser, notificationController.updateViewed); 
 
