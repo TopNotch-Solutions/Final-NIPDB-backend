@@ -303,7 +303,8 @@ exports.resendOTP = async (req, res) => {
     await sendOTPVerification(
       { id: userId, email, role: "User" },
       res,
-      { subject }
+      { subject },
+      t
     );
 
     await t.commit();

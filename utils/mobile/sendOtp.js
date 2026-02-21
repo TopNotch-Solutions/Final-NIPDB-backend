@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const OTP = require("../../models/otpVerification");
 require("dotenv").config();
 
-const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
+const sendOTPVerification = async ({ id, email, role }, res, { subject }, transaction = null) => {
   if (!id) {
       return res.status(400).json({
         status: "FAILURE",
@@ -200,7 +200,8 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       };
     }
     await OTP.destroy({
-      where: { userId: id, role }
+      where: { userId: id, role },
+      transaction 
     });
 
     await OTP.create({
@@ -209,7 +210,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       role,
       createdAt: new Date(),
       expiresAt
-    });
+    },{transaction});
 
     await transporter.sendMail(mailOptions);
 
