@@ -2,27 +2,45 @@ const bcrypt = require("bcrypt");
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const OTP = require("../../models/otpVerification");
+require("dotenv").config();
 
 
 sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
   try {
     let mailOptions, otp, hashedOTP, resetLink;
 
+    // const transporter = nodemailer.createTransport({
+    //   host: 'smtp-relay.gmail.com',
+    //   port: 25,
+    //   tls: {
+    //     rejectUnauthorized: false,
+    //   },
+    // });
     const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 25,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
+          service: "gmail",
+          host: 'smtp.gmail.com',
+          port: 587,
+          secure: false,
+          auth:{
+            user: process.env.USERNAME,
+            pass: process.env.PASSWORD
+          }
+        });
 
     if (role === "User") {
       otp = `${Math.floor(1000 + Math.random() * 9000)}`;
       const salt = await bcrypt.genSalt();
       hashedOTP = await bcrypt.hash(otp, salt);
 
+      // mailOptions = {
+      //   from: 'in4msme@nipdb.com',
+      //   to: email,
+      //   subject: subject,
+      //   html: `<p>Enter <b>${otp}</b> in the app to verify your email address and complete your registration. <b>OTP will expire in 3 minutes.</b></p>`,
+      // };
+
       mailOptions = {
-        from: 'in4msme@nipdb.com',
+        from:  process.env.USERNAME,
         to: email,
         subject: subject,
         html: `<p>Enter <b>${otp}</b> in the app to verify your email address and complete your registration. <b>OTP will expire in 3 minutes.</b></p>`,
@@ -43,12 +61,18 @@ sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       });
     } else {
       const token = crypto.randomBytes(32).toString('hex');
-      resetLink = `https://dt.mtc.com.na/reset-password?token=${token}&userId=${id}`;
+      resetLink = `http://41.219.71.112:8080/reset-password?token=${token}&userId=${id}`;
       const salt = await bcrypt.genSalt();
       hashedOTP = await bcrypt.hash(token, salt);
 
+      // mailOptions = {
+      //   from: 'in4msme@nipdb.com',
+      //   to: email,
+      //   subject: subject,
+      //   html: `<p>Click the link below to reset your password. The link will expire in 1 hour.</p><p><a href="${resetLink}">Reset Password</a></p>`,
+      // };
       mailOptions = {
-        from: 'in4msme@nipdb.com',
+        from: process.env.USERNAME,
         to: email,
         subject: subject,
         html: `<p>Click the link below to reset your password. The link will expire in 1 hour.</p><p><a href="${resetLink}">Reset Password</a></p>`,
