@@ -6,7 +6,7 @@ const {checkUser,checkAppUser} = require("../../middlewares/mobile/authMiddlewar
 const updateUserProfileImage = require('../../middlewares/shared/updateUserProfileImage');
 const profileUploadMiddleware = require('../../middlewares/shared/profileUploadMiddleware');
 
-authUserRouter.post('/signup', appTokenMiddleware, checkAppUser, profileUploadMiddleware.uploadSingle, authController.signup);  
+authUserRouter.post('/signup', profileUploadMiddleware.uploadSingle, authController.signup);  
 authUserRouter.post('/verifyOTP', appTokenMiddleware, checkAppUser,authController.verifyOTP);
 authUserRouter.post('/forget-password/verifyOTP', appTokenMiddleware, checkAppUser,authController.verifyForgotOTP);
 authUserRouter.post('/resendOTP', appTokenMiddleware, checkAppUser, authController.resendOTP);
