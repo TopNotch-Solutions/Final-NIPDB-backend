@@ -7,10 +7,10 @@ const updateUserProfileImage = require('../../middlewares/shared/updateUserProfi
 const profileUploadMiddleware = require('../../middlewares/shared/profileUploadMiddleware');
 
 authUserRouter.post('/signup', profileUploadMiddleware.uploadSingle, authController.signup);  
-authUserRouter.post('/verifyOTP', appTokenMiddleware, checkAppUser,authController.verifyOTP);
-authUserRouter.post('/forget-password/verifyOTP', appTokenMiddleware, checkAppUser,authController.verifyForgotOTP);
-authUserRouter.post('/resendOTP', appTokenMiddleware, checkAppUser, authController.resendOTP);
-authUserRouter.post('/sendOTP',appTokenMiddleware, checkAppUser, authController.sendOTP);
+authUserRouter.post('/verifyOTP', authController.verifyOTP);
+authUserRouter.post('/forget-password/verifyOTP', authController.verifyForgotOTP);
+authUserRouter.post('/resendOTP', authController.resendOTP);
+authUserRouter.post('/sendOTP',authController.sendOTP);
 authUserRouter.post('/login', appTokenMiddleware, checkAppUser, authController.login);
 authUserRouter.post('/forgot-password/email',appTokenMiddleware, checkAppUser, authController.forgotPasswordEmail);
 authUserRouter.post('/forgot-password/resendOTP',appTokenMiddleware, checkAppUser, authController.forgotPasswordResendOTP);
