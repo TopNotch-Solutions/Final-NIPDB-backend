@@ -1,61 +1,63 @@
 const Region = require('../../models/region');
 
 exports.all = async (req, res) => {
-    try {
-      const region = await Region.findAll();
-      if (region) {
-        res.status(201).json({
-          status: "SUCCESS",
-          message: "Regions successfully retrieved!",
-          data: region,
-        });
-      } else {
-        res.status(500).json({
-          status: "FAILURE",
-          message: "Internal server error.",
-        });
-      }
-    } catch (error) {
-      res.status(500).json({
+  try {
+    const regions = await Region.findAll();
+
+    if (!regions || regions.length === 0) {
+      return res.status(404).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "No regions found.",
+        data: []
       });
     }
-  };
-  
-  exports.single = async (req, res) => {
-      try {
-        const id = req.params.id;
-    
-        if (id === "") {
-          res.status(400).json({
-            status: "FAILURE",
-            message: "Empty parameter",
-          });
-        } else {
-          const region = await Region.findOne({
-            where: {
-              id,
-            },
-          });
-    
-          if (region) {
-            res.status(200).json({
-              status: "SUCCESS",
-              message: "Region successfully retrieved!",
-              data: region,
-            });
-          } else {
-            res.status(404).json({
-              status: "FAILURE",
-              message: "The region provided does not exist.",
-            });
-          }
-        }
-      } catch (error) {
-        res.status(500).json({
-          status: "FAILURE",
-          message: "Internal server error: " + error.message,
-        });
-      }
-    };
+
+    res.status(200).json({
+      status: "SUCCESS",
+      message: "Regions successfully retrieved!",
+      data: regions,
+    });
+  } catch (error) {
+    console.error("Fetch All Regions Error:", error);
+    res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.single = async (req, res) => {
+  const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Region ID is required.",
+      });
+    }
+
+  try {
+
+    const region = await Region.findOne({ where: { id } });
+
+    if (!region) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "The region provided does not exist.",
+        data: []
+      });
+    }
+
+    res.status(200).json({
+      status: "SUCCESS",
+      message: "Region successfully retrieved!",
+      data: region,
+    });
+  } catch (error) {
+    console.error("Fetch Single Region Error:", error);
+    res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};

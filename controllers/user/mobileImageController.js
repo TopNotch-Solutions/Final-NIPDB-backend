@@ -2,59 +2,61 @@ const MobileImage = require("../../models/mobileImage");
 
 exports.all = async (req, res) => {
   try {
-    const mobileImage = await MobileImage.findAll();
-    if (mobileImage) {
-      res.status(201).json({
-        status: "SUCCESS",
-        message: "Images successfully retrieved!",
-        data: mobileImage,
-      });
-    } else {
-      res.status(500).json({
+    const images = await MobileImage.findAll();
+
+    if (!images || images.length === 0) {
+      return res.status(404).json({
         status: "FAILURE",
-        message: "Internal server error.",
+        message: "No mobile images found.",
       });
     }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Mobile images retrieved successfully.",
+      data: images,
+    });
   } catch (error) {
-    res.status(500).json({
+    console.error("Error fetching all mobile images:", error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
+
 exports.single = async (req, res) => {
   try {
-    const id = req.params.id;
+    const { id } = req.params;
 
-    if (id === "") {
-      res.status(400).json({
+    if (!id) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Mobile image ID is required.",
       });
-    } else {
-      const mobileImage = await MobileImage.findOne({
-        where: {
-          id,
-        },
-      });
-
-      if (mobileImage) {
-        res.status(200).json({
-          status: "SUCCESS",
-          message: "Bsos successfully retrieved!",
-          data: mobileImage,
-        });
-      } else {
-        res.status(500).json({
-          status: "FAILURE",
-          message: "Internal server error.",
-        });
-      }
     }
+
+    const image = await MobileImage.findOne({ where: { id } });
+
+    if (!image) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: `No mobile image found with ID: ${id}`,
+      });
+    }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Mobile image retrieved successfully.",
+      data: image,
+    });
   } catch (error) {
-    res.status(500).json({
+    console.error(`Error fetching mobile image with ID ${req.params.id}:`, error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };

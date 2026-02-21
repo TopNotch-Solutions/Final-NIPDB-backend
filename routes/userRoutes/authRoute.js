@@ -15,7 +15,7 @@ authUserRouter.post('/login', authController.login);
 authUserRouter.post('/forgot-password/email',appTokenMiddleware, checkAppUser, authController.forgotPasswordEmail);
 authUserRouter.post('/forgot-password/resendOTP',appTokenMiddleware, checkAppUser, authController.forgotPasswordResendOTP);
 authUserRouter.post('/app-user/register-device-token',appTokenMiddleware, checkAppUser, authController.register);
-authUserRouter.post('/register-device-token', tokenAuthMiddleware, checkUser, authController.registerDeviceToken);  
+authUserRouter.post('/register-device-token', authController.registerDeviceToken);  
 
 authUserRouter.get('/logout',appTokenMiddleware, checkAppUser, checkAppUser, authController.logout);
 authUserRouter.get('/app-user/is-push-notification-enabled', appTokenMiddleware, checkAppUser, authController.validateDeviceToken); //.. to check whether the user allowed push notification or not if not loggedin

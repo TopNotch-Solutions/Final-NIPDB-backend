@@ -2,213 +2,252 @@ const { where } = require("sequelize");
 const Notification = require("../../models/notification");
 const User = require("../../models/user");
 const { viewed } = require("./directMessageController");
+const sequelize = require("../../config/dbConfig");
 
 exports.allUserNotfication = async (req, res) => {
-  try {
-    let userId = req.user.id;
-
-    if (!userId) {
-      return res.status(404).json({
+  let userId = req.user.id;
+   if (!userId) {
+      return res.status(400).json({
         status: "FAILURE",
         message: "UserId is required.",
       });
     }
-    const allUserNotfication = await Notification.findAll({
-      where: {
-        userId,
-      },
+  try {
+    const notifications = await Notification.findAll({
+      where: { userId },
       order: [["createdAt", "DESC"]],
     });
-    if (!allUserNotfication) {
+
+    if (!notifications || notifications.length === 0) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "There are no notifications for the provided user.",
+        message: "No notifications found for this user.",
+        data: []
       });
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All user notifications retrieved successfully!",
-      data: allUserNotfication,
+      message: "User notifications retrieved successfully.",
+      data: notifications,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error(`Error fetching notifications for user ${req.user?.id}:`, error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
+
 exports.unreadNotification = async (req, res) => {
-  try {
-    let userId = req.user.id;
+  const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "User ID is required.",
       });
     }
-    const unreadUserNotfication = await Notification.findAll({
-      where: {
+
+  try {
+    
+    const unreadNotifications = await Notification.findAll({
+      where: { 
         userId,
-        viewed: false
+        viewed: false 
       },
       order: [["createdAt", "DESC"]],
     });
-    if (!unreadUserNotfication) {
+
+    if (!unreadNotifications || unreadNotifications.length === 0) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "There are no notifications for the provided user.",
+        message: "No unread notifications found for this user.",
+        data: []
       });
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All user unread notifications retrieved successfully!",
-      data: unreadUserNotfication,
+      message: "Unread notifications retrieved successfully.",
+      data: unreadNotifications,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error(`Error fetching unread notifications for user ${req.user?.id}:`, error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
+
 exports.readNotification = async (req, res) => {
   try {
-    let userId = req.user.id;
+    const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "User ID is required.",
       });
     }
-    const readUserNotfication = await Notification.findAll({
+
+    const readNotifications = await Notification.findAll({
       where: {
         userId,
-        viewed:true
+        viewed: true,
       },
       order: [["createdAt", "DESC"]],
     });
-    if (!readUserNotfication) {
+
+    if (!readNotifications || readNotifications.length === 0) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "There are no notifications for the provided user.",
+        message: "No read notifications found for this user.",
+        data: []
       });
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All user read notifications retrieved successfully!",
-      data: readUserNotfication,
+      message: "Read notifications retrieved successfully.",
+      data: readNotifications,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error(`Error fetching read notifications for user ${req.user?.id}:`, error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.totalNotficationCount = async (req, res) => {
-  try {
-    let userId  = req.user.id;
+
+
+exports.totalNotificationCount = async (req, res) => {
+  const userId = req.user?.id;
 
     if (!userId) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "User ID is required.",
       });
     }
+  try {
+    
     const totalCount = await Notification.count({
       where: {
         userId,
         viewed: false,
       },
     });
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Total count successfully retrieved!",
-        count: totalCount,
-      });
-    }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Total count successfully retrieved!",
+      message: "Total unread notifications count retrieved successfully.",
       count: totalCount,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error(`Error fetching notification count for user ${req.user?.id}:`, error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.updateViewed = async (req, res) => {
-  try {
-    let userId = req.user.id;
-    let { notificationId } = req.params;
 
-    if (!notificationId  || !userId) {
+exports.updateViewed = async (req, res) => {
+  const userId = req.user?.id;
+    const { notificationId } = req.params;
+
+     if (!notificationId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Notification ID required fields",
+      });
+    }
+    if (!userId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User ID required fields",
+      });
+    }
+  const t = await sequelize.transaction(); 
+  try {
+    
+
+    const user = await User.findOne({ where: { id: userId }, transaction: t });
+    if (!user) {
+      await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "User does not exist.",
       });
     }
-    const checkUser = await User.findOne({
-      where: {
-        id:userId,
-      },
+
+    const notification = await Notification.findOne({
+      where: { id: notificationId, userId },
+      transaction: t,
     });
-    if (!checkUser) {
-      return res.status(200).json({
+    if (!notification) {
+      await t.rollback();
+      return res.status(404).json({
         status: "FAILURE",
-        message: "User does not exist!",
+        message: "Notification does not exist for this user.",
       });
     }
-    const checkNotification = await Notification.findOne({
-      where: {
-        id:notificationId,
-      },
-    });
-    if (!checkNotification) {
-      return res.status(200).json({
-        status: "FAILURE",
-        message: "Notification does not exist!",
-      });
-    }
+
     await Notification.update(
       { viewed: true },
       {
-        where: {
-          id: notificationId,
-          userId,
-        },
+        where: { id: notificationId, userId },
+        transaction: t,
       }
     );
-    res.status(200).json({
+
+    await t.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Notification successfully viewed!",
+      message: "Notification successfully marked as viewed.",
     });
   } catch (error) {
-    res.status(500).json({
+    await t.rollback();
+    console.error(`Error updating notification viewed status:`, error);
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.deleteSingle = async (req, res) => {
-  try {
-    let userId = req.user.id;
-    let { notificationId } = req.params;
 
-    if (!userId || !notificationId) {
+
+exports.deleteSingle = async (req, res) => {
+  const userId = req.user.id;
+    const { notificationId } = req.params;
+     if (!notificationId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "Notification ID required fields",
       });
     }
+    if (!userId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User ID required fields",
+      });
+    }
+  const t = await sequelize.transaction();
+  try {
 
-    const checkUser = await User.findOne({ where: { id: userId } });
+    const checkUser = await User.findOne({ where: { id: userId }, transaction: t });
     if (!checkUser) {
+      await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "User does not exist!",
@@ -216,22 +255,36 @@ exports.deleteSingle = async (req, res) => {
     }
 
     const findNotification = await Notification.findOne({
-      where: { id: notificationId, userId: userId }, // Ensure 'id' is correct field
+      where: { id: notificationId, userId },
+      transaction: t,
     });
     if (!findNotification) {
+      await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "Notification does not exist!",
       });
     }
 
-    await Notification.destroy({ where: { id: notificationId, userId: userId } });
+    await Notification.destroy({
+      where: { id: notificationId, userId },
+      transaction: t,
+    });
+
+    await t.commit();
+
     res.status(200).json({
       status: "SUCCESS",
       message: "Notification successfully deleted!",
     });
+
   } catch (error) {
-    console.error("Error deleting notification:", error); // Log full error object
+    await t.rollback();
+    console.error("Delete Notification Error:", {
+      message: error.message,
+      stack: error.stack,
+    });
+
     res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
