@@ -489,9 +489,7 @@ exports.all = async (req, res) => {
   const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
 
@@ -567,9 +565,7 @@ exports.filterByIndustry = async (req, res) => {
     const limit = parseInt(req.query.limit) || 20;
     const offset = (page - 1) * limit;
 
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
     
@@ -646,9 +642,7 @@ exports.filterByIndustry = async (req, res) => {
 
 
 exports.recentlyAdded = async (req, res) => {
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
     const limit = parseInt(req.query.limit) || 7;
@@ -704,9 +698,7 @@ exports.allRegionBusiness = async (req, res) => {
         message: "Region is required.",
       });
     }
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
     
@@ -787,9 +779,7 @@ exports.allTownBusiness = async (req, res) => {
       });
     }
 
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
     const normalizedTown = townName.trim();
@@ -868,9 +858,7 @@ exports.allLiked = async (req, res) => {
         message: "User ID is required.",
       });
     }
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
 
@@ -978,9 +966,7 @@ exports.isBusinessLiked = async (req, res) => {
       });
     }
 
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
 
@@ -1025,9 +1011,7 @@ exports.isVisible = async (req, res) => {
         message: "Business ID is required.",
       });
     }
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
    
@@ -1071,9 +1055,7 @@ exports.allSingleUserMsme = async (req, res) => {
         message: "Empty parameter: userId is required.",
       });
     }
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
     const page = parseInt(req.query.page) || 1;
@@ -1140,9 +1122,7 @@ exports.single = async (req, res) => {
         message: "Business ID is required.",
       });
     }
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
     
@@ -1197,9 +1177,7 @@ exports.singleRejected = async (req, res) => {
         message: "Business ID is required.",
       });
     }
-  const transaction = await sequelize.transaction({
-    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
-  });
+  const transaction = await sequelize.transaction();
 
   try {
 
