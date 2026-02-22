@@ -1675,7 +1675,7 @@ exports.updateImage1 = (req, res) => updateBusinessImage(req, res, "image1");
 exports.updateImage2 = (req, res) => updateBusinessImage(req, res, "image2");
 exports.updateImage3 = (req, res) => updateBusinessImage(req, res, "image3");
 
-exports.updateBusinessHours = async (req, res) => {
+exports.businessHours = async (req, res) => {
    const userId = req.user.id;
     const { businessId } = req.params;
     const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } = req.body;
