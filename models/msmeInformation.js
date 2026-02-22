@@ -17,7 +17,8 @@ const MsmeInformation = sequelize.define(
 
           businessRegistrationName: {
             type: DataTypes.STRING,
-            allowNull: true
+            allowNull: true,
+            defaultValue: null
           },
           businessRegistrationNumber: {
             type: DataTypes.INTEGER,
