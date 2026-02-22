@@ -75,7 +75,7 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
         <table width="500" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:8px; padding:40px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
           <tr>
             <td align="center" style="padding-bottom:20px;">
-              <h2 style="margin:0; color:#2c3e50;">Email Verification</h2>
+              <h2 style="margin:0; color:#009548;">Email Verification</h2>
               <p style="margin:5px 0 0 0; color:#7f8c8d; font-size:14px;">
                 Secure One-Time Password (OTP)
               </p>
@@ -98,7 +98,7 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
                 letter-spacing:5px;
                 font-weight:bold;
                 color:#ffffff;
-                background-color:#2c3e50;
+                background-color:#009548;
                 border-radius:6px;">
                 ${otp}
               </div>

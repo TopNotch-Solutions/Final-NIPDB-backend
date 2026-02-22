@@ -2,86 +2,102 @@ const { where } = require("sequelize");
 const PushNotification = require("../../models/pushNotifications");
 const User = require("../../models/user");
 const { viewed } = require("./directMessageController");
+const sequelize = require("../../config/dbConfig");
 
-exports.allUserNotfication = async (req, res) => {
-  try {
-    let {deviceToken} = req.params;
+exports.allUserNotification = async (req, res) => {
+  const { deviceToken } = req.params;
 
     if (!deviceToken) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "Device token is required.",
       });
     }
-    const allUserNotfication = await PushNotification.findAll({
-      where: {
-        deviceToken,
-      },
+
+  try {
+    
+    const notifications = await PushNotification.findAll({
+      where: { deviceToken },
       order: [["createdAt", "DESC"]],
     });
-    if (!allUserNotfication) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "There are no notifications for the provided user.",
+
+    if (!notifications || notifications.length === 0) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No notifications found for the provided device token.",
+        data: []
       });
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All user notifications retrieved successfully!",
-      data: allUserNotfication,
+      message: "User notifications retrieved successfully!",
+      data: notifications,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("Fetch Push Notifications Error:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.unreadNotification = async (req, res) => {
-  try {
-    let {deviceToken} = req.params;
+  const { deviceToken } = req.params;
 
     if (!deviceToken) {
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "Device token is required.",
       });
     }
-    const unreadUserNotfication = await PushNotification.findAll({
+
+  try {
+    
+    const unreadNotifications = await PushNotification.findAll({
       where: {
         deviceToken,
-        viewed: false
+        viewed: false,
       },
       order: [["createdAt", "DESC"]],
     });
-    if (!unreadUserNotfication) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "There are no notifications for the provided user.",
+
+    if (!unreadNotifications || unreadNotifications.length === 0) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No unread notifications found for the provided device token.",
+        data: []
       });
     }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All user unread notifications retrieved successfully!",
-      data: unreadUserNotfication,
+      message: "Unread notifications retrieved successfully!",
+      data: unreadNotifications,
     });
+
   } catch (error) {
-    res.status(500).json({
+    console.error("Fetch Unread Notifications Error:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.readNotification = async (req, res) => {
-  try {
-    let {deviceToken} = req.params;
+  let {deviceToken} = req.params;
 
     if (!deviceToken) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "Device token is required.",
       });
     }
+  try {
+    
     const readUserNotfication = await PushNotification.findAll({
       where: {
         deviceToken,
@@ -90,9 +106,10 @@ exports.readNotification = async (req, res) => {
       order: [["createdAt", "DESC"]],
     });
     if (!readUserNotfication) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "There are no notifications for the provided user.",
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "There are no notifications for the provided device token.",
+        data: []
       });
     }
     res.status(200).json({
@@ -108,15 +125,17 @@ exports.readNotification = async (req, res) => {
   }
 };
 exports.totalNotficationCount = async (req, res) => {
-  try {
-    let {deviceToken}  = req.params;
+  let {deviceToken}  = req.params;
 
     if (!deviceToken) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "UserId is required.",
+        message: "Device token is required.",
       });
     }
+
+  try {
+    
     const totalCount = await PushNotification.count({
       where: {
         deviceToken,
@@ -142,79 +161,110 @@ exports.totalNotficationCount = async (req, res) => {
     });
   }
 };
+
 exports.updateViewed = async (req, res) => {
-  try {
-    let {deviceToken} = req.params;
+  const { deviceToken } = req.params;
 
     if (!deviceToken) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Device token is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
+
+  try {
+    
+    const notification = await PushNotification.findOne({
+      where: { deviceToken },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!notification) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "Notification does not exist.",
       });
     }
-    const checkNotification = await PushNotification.findOne({
-      where: {
-        deviceToken
-      },
-    });
-    if (!checkNotification) {
+
+    if (notification.viewed) {
+      await transaction.commit();
       return res.status(200).json({
-        status: "FAILURE",
-        message: "Notification does not exist!",
+        status: "SUCCESS",
+        message: "Notification already marked as viewed.",
       });
     }
-    await PushNotification.update(
-      { viewed: true },
-      {
-        where: {
-            deviceToken
-        },
-      }
-    );
-    res.status(200).json({
+
+    notification.viewed = true;
+    await notification.save({ transaction });
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Notification successfully viewed!",
+      message: "Notification successfully marked as viewed.",
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error updating viewed status:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
+
 exports.deleteSingle = async (req, res) => {
-  try {
-    let {deviceToken} = req.params;
+   const { deviceToken } = req.params;
 
     if (!deviceToken) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "Device token is required.",
       });
     }
+  const transaction = await sequelize.transaction();
 
-    const findNotification = await PushNotification.findOne({
-      where: {
-        deviceToken
-       }, // Ensure 'id' is correct field
+  try {
+
+    const notification = await PushNotification.findOne({
+      where: { deviceToken },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
-    if (!findNotification) {
+
+    if (!notification) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Notification does not exist!",
+        message: "Notification does not exist.",
       });
     }
 
-    await PushNotification.destroy({ where: { deviceToken } });
-    res.status(200).json({
+    await notification.destroy({ transaction });
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Notification successfully deleted!",
+      message: "Notification successfully deleted.",
     });
+
   } catch (error) {
-    console.error("Error deleting notification:", error); // Log full error object
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error deleting notification:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };

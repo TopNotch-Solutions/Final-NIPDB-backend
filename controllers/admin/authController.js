@@ -75,9 +75,6 @@ exports.signup = async (req, res) => {
         user: process.env.USERNAME,
         pass: process.env.PASSWORD
       }
-      // tls: {
-      //   rejectUnauthorized: false,
-      // },
     });
 
     // const mailOptions = {

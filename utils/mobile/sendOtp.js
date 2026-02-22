@@ -66,7 +66,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }, transa
           
           <tr>
             <td align="center" style="padding-bottom: 20px;">
-              <h2 style="margin:0; color:#2c3e50;">Email Verification</h2>
+              <h2 style="margin:0; color:#009548;">Email Verification</h2>
               <p style="margin:5px 0 0 0; font-size:14px; color:#7f8c8d;">
                 One-Time Password (OTP) for your account
               </p>
@@ -89,7 +89,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }, transa
                 letter-spacing:5px;
                 font-weight:bold;
                 color:#ffffff;
-                background-color:#2c3e50;
+                background-color:#009548;
                 border-radius:6px;">
                 ${otp}
               </div>

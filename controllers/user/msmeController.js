@@ -17,18 +17,17 @@ const Town = require("../../models/town");
 const sendEmail = require("../../utils/mobile/sendEmail");
 const fs = require("fs");
 const path = require("path");
+const sequelize = require("../../config/dbConfig");
 
 exports.create = async (req, res) => {
-  let newInformation;
-  try {
-    const files = req.files;
-    let businessLogo = files.businessLogo
-      ? files.businessLogo[0].filename
-      : null;
-    const image1 = files.image1 ? files.image1[0].filename : null;
-    const image2 = files.image2 ? files.image2[0].filename : null;
-    const image3 = files.image3 ? files.image3[0].filename : null;
-    const { id } = req.user;
+  const { id } = req.user;
+    const files = req.files || {};
+
+    let businessLogo = files.businessLogo?.[0]?.filename || null;
+    const image1 = files.image1?.[0]?.filename || null;
+    const image2 = files.image2?.[0]?.filename || null;
+    const image3 = files.image3?.[0]?.filename || null;
+
     let {
       businessRegistrationName,
       businessRegistrationNumber,
@@ -77,12 +76,6 @@ exports.create = async (req, res) => {
       "founderAge",
       "founderGender",
       "businessAddress",
-      "monday",
-      "tuesday",
-      "wednesday",
-      "friday",
-      "saturday",
-      "sunday",
       "phoneNumber",
       "email",
     ];
@@ -95,30 +88,61 @@ exports.create = async (req, res) => {
         });
       }
     }
+  const transaction = await sequelize.transaction();
 
-    businessRegistrationName = CapitalizeFirstLetter(businessRegistrationName);
-    businessDisplayName = CapitalizeFirstLetter(businessDisplayName);
-    typeOfBusiness = CapitalizeFirstLetter(typeOfBusiness);
-    description = CapitalizeFirstLetter(description);
-    region = CapitalizeFirstLetter(region);
-    town = CapitalizeFirstLetter(town);
-    primaryIndustry = CapitalizeFirstLetter(primaryIndustry);
-    secondaryIndustry = CapitalizeFirstLetter(secondaryIndustry);
-    founderName = CapitalizeFirstLetter(founderName);
-    founderGender = CapitalizeFirstLetter(founderGender);
-    businessAddress = CapitalizeFirstLetter(businessAddress);
+  try {
 
-    const checkExistingUser = await User.findOne({ where: { id } });
+    const capitalizeFields = [
+      "businessRegistrationName",
+      "businessDisplayName",
+      "typeOfBusiness",
+      "description",
+      "region",
+      "town",
+      "primaryIndustry",
+      "secondaryIndustry",
+      "founderName",
+      "founderGender",
+      "businessAddress",
+    ];
+
+    capitalizeFields.forEach((field) => {
+      if (req.body[field]) {
+        req.body[field] = CapitalizeFirstLetter(req.body[field]);
+      }
+    });
+
+    ({
+      businessRegistrationName,
+      businessDisplayName,
+      typeOfBusiness,
+      description,
+      region,
+      town,
+      primaryIndustry,
+      secondaryIndustry,
+      founderName,
+      founderGender,
+      businessAddress,
+    } = req.body);
+
+    const checkExistingUser = await User.findOne({
+      where: { id },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
     if (!checkExistingUser) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "The user you are trying to insert into the database does not exist.",
+        message: "User does not exist.",
       });
     }
 
     if (checkExistingUser.role !== "User") {
-      return res.status(400).json({
+      await transaction.rollback();
+      return res.status(403).json({
         status: "FAILURE",
         message: "User does not have access to this route.",
       });
@@ -126,58 +150,70 @@ exports.create = async (req, res) => {
 
     const alreadyExist = await MsmeInformation.findOne({
       where: { businessRegistrationName },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
+
     if (alreadyExist) {
+      await transaction.rollback();
       return res.status(409).json({
         status: "FAILURE",
         message: "Business name already in use.",
       });
     }
 
-    newInformation = await MsmeInformation.create({
-      businessRegistrationName,
-      businessDisplayName,
-      businessAddress,
-      typeOfBusiness,
-      description,
-      region,
-      town,
-      businessRegistrationNumber,
-      primaryIndustry,
-      secondaryIndustry,
-      yearOfEstablishment,
-      annualTurnover,
-      userId: id,
-    });
+    const newBusiness = await MsmeInformation.create(
+      {
+        businessRegistrationName,
+        businessDisplayName,
+        businessAddress,
+        typeOfBusiness,
+        description,
+        region,
+        town,
+        businessRegistrationNumber,
+        primaryIndustry,
+        secondaryIndustry,
+        yearOfEstablishment,
+        annualTurnover,
+        userId: id,
+      },
+      { transaction }
+    );
 
-    await MsmeFounderInfo.create({
-      businessId: newInformation.id,
-      founderName,
-      founderAge,
-      founderGender,
-    });
+    await MsmeFounderInfo.create(
+      {
+        businessId: newBusiness.id,
+        founderName,
+        founderAge,
+        founderGender,
+      },
+      { transaction }
+    );
 
-    await MsmeContactInfo.create({
-      businessId: newInformation.id,
-      businessAddress,
-      phoneNumber,
-      whatsAppNumber,
-      email,
-      website,
-      twitter,
-      facebook,
-      instagram,
-      linkedIn,
-    });
+    await MsmeContactInfo.create(
+      {
+        businessId: newBusiness.id,
+        businessAddress,
+        phoneNumber,
+        whatsAppNumber,
+        email,
+        website,
+        twitter,
+        facebook,
+        instagram,
+        linkedIn,
+      },
+      { transaction }
+    );
 
     if (!businessLogo) {
       const businessIcon = await PrimaryIndustry.findOne({
-        where: {
-          industryName: primaryIndustry,
-        },
+        where: { industryName: primaryIndustry },
+        transaction,
       });
 
-      if (businessIcon && businessIcon.industryIcon) {
+      if (businessIcon?.industryIcon) {
         const sourcePath = path.join(
           "public",
           "primary-industries",
@@ -194,319 +230,272 @@ exports.create = async (req, res) => {
       }
     }
 
-    await MsmeAdditionalInfo.create({
-      businessId: newInformation.id,
-      numberOfEmployees,
-      businessLogo,
-      image1,
-      image2,
-      image3,
-    });
+    await MsmeAdditionalInfo.create(
+      {
+        businessId: newBusiness.id,
+        numberOfEmployees,
+        businessLogo,
+        image1,
+        image2,
+        image3,
+      },
+      { transaction }
+    );
 
-    await BusinessHour.create({
-      businessId: newInformation.id,
-      monday,
-      tuesday,
-      wednesday,
-      thursday,
-      friday,
-      saturday,
-      sunday,
-    });
+    await BusinessHour.create(
+      {
+        businessId: newBusiness.id,
+        monday,
+        tuesday,
+        wednesday,
+        thursday,
+        friday,
+        saturday,
+        sunday,
+      },
+      { transaction }
+    );
 
-    const users = await Admin.findAll({ attributes: ["id"] });
-    const userIds = users.map((user) => user.id);
-    const notifications = userIds.map((userId) => ({
-      userId,
+    const admins = await Admin.findAll(
+      { attributes: ["id"] },
+      { transaction }
+    );
+
+    const adminNotifications = admins.map((admin) => ({
+      userId: admin.id,
       title: `${businessRegistrationName} Business Application Submitted for Review`,
-      notification: `${businessDisplayName} business application has been submitted by ${checkExistingUser.firstName} ${checkExistingUser.lastName}. Please review the application details at your earliest convenience.`,
+      notification: `${businessDisplayName} application submitted by ${checkExistingUser.firstName} ${checkExistingUser.lastName}.`,
       type: "Alert",
       priority: "High",
-      createdAt: Date.now(),
       viewed: false,
     }));
 
-    await AdminNotification.bulkCreate(notifications);
-    await Notification.create({
-      userId: id,
-      title: "Application Successfully Submitted.",
-      notification:
-        "Your form has been submitted successfully. Admin will review your application and approve or decline your form. You will be sent another notification with the status of your application. Once your application is approved it will be added to the list of your businesses on the msme profile and your business will be visible to all users. Remember, you can always turn off visibility in your profile settings if you don’t want people to see your business.",
-      type: "Alert",
-      priority: "High",
-      createdAt: Date.now(),
-      senderId: id,
-      viewed: false,
-    });
+    await AdminNotification.bulkCreate(adminNotifications, { transaction });
 
-    await sendEmail(
+    await Notification.create(
       {
-        email: checkExistingUser.email,
-        subject: "Application to in4msme pending approval",
-        notification: "pending",
+        userId: id,
+        title: "Application Successfully Submitted.",
+        notification:
+          "Your application has been submitted successfully. You will be notified once it is reviewed.",
+        type: "Alert",
+        priority: "High",
+        senderId: id,
+        viewed: false,
       },
-      res
+      { transaction }
     );
 
-    res.status(201).json({
+    await transaction.commit();
+    await sendEmail({
+      email: checkExistingUser.email,
+      subject: "Application to in4msme pending approval",
+      notification: "pending",
+    });
+
+    return res.status(201).json({
       status: "SUCCESS",
       message: "Business successfully created!",
     });
+
   } catch (error) {
-    if (newInformation) {
-      await MsmeInformation.destroy({ where: { id: newInformation.id } });
-      await MsmeFounderInfo.destroy({
-        where: { businessId: newInformation.id },
-      });
-      await MsmeContactInfo.destroy({
-        where: { businessId: newInformation.id },
-      });
-      await MsmeAdditionalInfo.destroy({
-        where: { businessId: newInformation.id },
-      });
-      await BusinessHour.destroy({ where: { businessId: newInformation.id } });
-    }
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("Create Business Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
+
 
 exports.like = async (req, res) => {
-  try {
-    let userId = req.user.id;
-    let { businessId } = req.params;
+  const userId = req.user?.id;
+    const { businessId } = req.params;
 
-    if (!userId || !businessId) {
+    if (!userId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User ID is required.",
+      });
+    }
+     if (!businessId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Business ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
+
+  try {
+
+    const existingUser = await User.findOne({
+      where: { id: userId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!existingUser) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "User does not exist.",
       });
     }
-    const existingUser = await User.findOne({
-      where: {
-        id: userId,
-      },
-    });
-    if (!existingUser) {
-      return res.status(409).json({
-        status: "FAILURE",
-        message: "userId provided does not exist!",
-      });
-    }
+
     const existingBusiness = await MsmeInformation.findOne({
-      where: {
-        id: businessId,
-      },
+      where: { id: businessId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
+
     if (!existingBusiness) {
-      return res.status(409).json({
+      await transaction.rollback();
+      return res.status(404).json({
         status: "FAILURE",
-        message: "businessId provided does not exist!",
+        message: "Business does not exist.",
       });
     }
+
     const alreadyLike = await Favourite.findOne({
-      where: {
+      where: { userId, businessId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (alreadyLike) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "Business already added to favourites.",
+      });
+    }
+
+    await Favourite.create(
+      {
         userId,
         businessId,
       },
-    });
-    if (alreadyLike) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "Business already added to favourite!",
-      });
-    }
-    await Favourite.create({
-      userId,
-      businessId,
-    });
-    res.status(200).json({
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Business successfully added to favourite!",
+      message: "Business successfully added to favourites.",
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("Like Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.unlike = async (req, res) => {
-  try {
-    let userId = req.user.id;
-    let { businessId } = req.params;
 
-    if (!userId || !businessId) {
-      return res.status(404).json({
+exports.unlike = async (req, res) => {
+  const userId = req.user?.id;
+    const { businessId } = req.params;
+
+    if (!userId) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "User ID is required.",
       });
     }
+     if (!businessId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Business ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
+
+  try {
     const existingUser = await User.findOne({
-      where: {
-        id: userId,
-      },
+      where: { id: userId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
+
     if (!existingUser) {
-      return res.status(409).json({
-        status: "FAILURE",
-        message: "userId provided does not exist!",
-      });
-    }
-    const existingBusiness = await MsmeInformation.findOne({
-      where: {
-        id: businessId,
-      },
-    });
-    if (!existingBusiness) {
-      return res.status(409).json({
-        status: "FAILURE",
-        message: "UserId and businessId provided does not exist!",
-      });
-    }
-    const alreadyLike = await Favourite.findOne({
-      where: {
-        userId,
-        businessId,
-      },
-    });
-    if (!alreadyLike) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Business not added to favourite!",
+        message: "User does not exist.",
       });
     }
-    await Favourite.destroy({
-      where: {
-        userId,
-        businessId,
-      },
+
+    const existingBusiness = await MsmeInformation.findOne({
+      where: { id: businessId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
-    res.status(200).json({
+
+    if (!existingBusiness) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Business does not exist.",
+      });
+    }
+
+    const favourite = await Favourite.findOne({
+      where: { userId, businessId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!favourite) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "Business is not in favourites.",
+      });
+    }
+
+    await favourite.destroy({ transaction });
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Business successfully removed from favourite!",
+      message: "Business successfully removed from favourites.",
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("Unlike Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.all = async (req, res) => {
-  try {
-    const allMsmeInformations = await MsmeInformation.findAll({
-      where: {
-        status: "Approved",
-        isBlocked: false,
-        isVisibility: true,
-      },
-      include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
-      ],
-    });
-    res.status(200).json({
-      status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: allMsmeInformations,
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "FAILURE",
-      message: "Internal server error: " + error.message,
-    });
-  }
-};
-exports.filterByIndustry = async (req, res) => {
-  try {
-    const { industryName } = req.params;
-    if (!industryName) {
-      return res
-        .status(400)
-        .json({ error: "Industry name parameter is required" });
-    }
-    const checkPrimaryExist = await PrimaryIndustry.findOne({
-      where: {
-        industryName,
-      },
-    });
-    const checkSecondaryExist = await SecondaryIndustry.findOne({
-      where: {
-        industryName,
-      },
-    });
+  const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
 
-    if (!checkPrimaryExist && !checkSecondaryExist) {
-      return res
-        .status(400)
-        .json({ error: "Industry name provided does not exist!" });
-    }
-    const allMsmeInformations = await MsmeInformation.findAll({
-      where: {
-        status: "Approved",
-        isBlocked: false,
-        isVisibility: true,
-        [Op.or]: [
-          {
-            primaryIndustry: industryName,
-          },
-          {
-            secondaryIndustry: industryName,
-          },
-        ],
-      },
-      include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
-      ],
-    });
-    res.status(200).json({
-      status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: allMsmeInformations,
-    });
-  } catch (error) {
-    res.status(500).json({
-      status: "FAILURE",
-      message: "Internal server error: " + error.message,
-    });
-  }
-};
-exports.recentlyAdded = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
         status: "Approved",
         isBlocked: false,
@@ -531,156 +520,367 @@ exports.recentlyAdded = async (req, res) => {
         },
       ],
       order: [["createdAt", "DESC"]],
-      limit: 7,
+      limit,
+      offset,
+      distinct: true,
+      transaction,
     });
-    res.status(200).json({
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: allMsmeInformations,
+      message: "MSME information retrieved successfully.",
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: rows,
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("Fetch MSME Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
+    });
+  }
+};
+
+exports.filterByIndustry = async (req, res) => {
+  const { industryName } = req.params;
+
+    if (!industryName) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Industry name parameter is required.",
+      });
+    }
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
+    
+    const normalizedIndustry = industryName.trim();
+
+    const [primaryExist, secondaryExist] = await Promise.all([
+      PrimaryIndustry.findOne({
+        where: { industryName: normalizedIndustry },
+        transaction,
+      }),
+      SecondaryIndustry.findOne({
+        where: { industryName: normalizedIndustry },
+        transaction,
+      }),
+    ]);
+
+    if (!primaryExist && !secondaryExist) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Industry name provided does not exist.",
+      });
+    }
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
+      where: {
+        status: "Approved",
+        isBlocked: false,
+        isVisibility: true,
+        [Op.or]: [
+          { primaryIndustry: normalizedIndustry },
+          { secondaryIndustry: normalizedIndustry },
+        ],
+      },
+      include: [
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
+      transaction,
+    });
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Filtered MSME information retrieved successfully.",
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: rows,
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+
+    console.error("Filter By Industry Error:", error);
+
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error.",
+      error: error.message,
+    });
+  }
+};
+
+
+exports.recentlyAdded = async (req, res) => {
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
+    const limit = parseInt(req.query.limit) || 7;
+
+    const recentlyAddedMsmes = await MsmeInformation.findAll({
+      where: {
+        status: "Approved",
+        isBlocked: false,
+        isVisibility: true,
+      },
+      include: [
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      distinct: true,
+      transaction,
+    });
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Recently added MSME information retrieved successfully.",
+      data: recentlyAddedMsmes,
+      count: recentlyAddedMsmes.length,
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+
+    console.error("Recently Added MSME Error:", error);
+
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.allRegionBusiness = async (req, res) => {
-  try {
-    let { region } = req.params;
+
+  let { region } = req.params;
+
     if (!region) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter: region.",
+        message: "Region is required.",
       });
     }
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
+    
+    const normalizedRegion = region.trim();
+
     const isRegion = await Region.findOne({
-      where: {
-        regionName: region,
-      },
+      where: { regionName: normalizedRegion },
+      transaction,
+      lock: transaction.LOCK.SHARE,
     });
+
     if (!isRegion) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "The provided region does not exist.",
       });
     }
-    const allMsmeInformations = await MsmeInformation.findAll({
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
-        region,
+        region: normalizedRegion,
         status: "Approved",
         isBlocked: false,
         isVisibility: true,
       },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
+      transaction,
     });
-    res.status(200).json({
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: allMsmeInformations,
+      message: "MSME information for region retrieved successfully.",
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: rows,
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("All Region Business Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.allTownBusiness = async (req, res) => {
-  try {
-    let { townName } = req.body;
-    if (!townName) {
+  let { townName } = req.body;
+  if (!townName) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter: region.",
+        message: "Town name is required.",
       });
     }
+
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
+    const normalizedTown = townName.trim();
+
     const isTown = await Town.findOne({
-      where: {
-        townName,
-      },
+      where: { townName: normalizedTown },
+      transaction,
+      lock: transaction.LOCK.SHARE,
     });
+
     if (!isTown) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "The provided town does not exist.",
       });
     }
-    const allMsmeInformations = await MsmeInformation.findAll({
+
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
-        town: townName,
+        town: normalizedTown,
         status: "Approved",
         isBlocked: false,
         isVisibility: true,
       },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
+      transaction,
     });
-    res.status(200).json({
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: allMsmeInformations,
+      message: "MSME information for town retrieved successfully.",
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: rows,
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("All Town Business Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.allLiked = async (req, res) => {
-  try {
-    let userId = req.user.id;
 
+exports.allLiked = async (req, res) => {
+  const userId = req.user.id;
     if (!userId) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter: userId.",
+        message: "User ID is required.",
       });
     }
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
 
     const existingUser = await User.findOne({
-      where: {
-        id: userId,
-      },
+      where: { id: userId },
+      transaction,
     });
 
     if (!existingUser) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "User does not exist.",
@@ -688,203 +888,264 @@ exports.allLiked = async (req, res) => {
     }
 
     const likedBusinesses = await Favourite.findAll({
-      where: {
-        userId,
-      },
+      where: { userId },
       attributes: ["businessId"],
+      transaction,
     });
 
     const businessIds = likedBusinesses.map((like) => like.businessId);
 
     if (businessIds.length === 0) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "The user has not liked any businesses.",
       });
     }
 
-    const businesses = await MsmeInformation.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
-        id: businessIds,
+        id: { [Op.in]: businessIds },
         status: "Approved",
         isBlocked: false,
         isVisibility: true,
       },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
+      transaction,
     });
 
-    if (businesses.length === 0) {
+    if (rows.length === 0) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "No businesses found in MsmeInformation table for the liked business IDs.",
+        message: "No approved MSMEs found for the liked business IDs.",
       });
     }
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: businesses,
+      message: "Liked MSME information retrieved successfully.",
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: rows,
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("All Liked MSME Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.isBusinessLiked = async (req, res) => {
-  try {
-    let userId = req.user.id;
-    let { businessId } = req.params;
+  const userId = req.user.id;
+    const { businessId } = req.params;
 
+    if (!userId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User ID is required.",
+      });
+    }
     if (!userId || !businessId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "Business ID is required.",
       });
     }
 
-    const isLiked = await Favourite.findOne({
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
+
+    const isLikedRecord = await Favourite.findOne({
       where: { userId, businessId },
+      transaction,
     });
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Business like status retrieved successfully!",
-      data: { isLiked: !!isLiked },
+      message: "Business like status retrieved successfully.",
+      data: { isLiked: !!isLikedRecord },
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+
+    console.error("Business Like Status Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.isVisible = async (req, res) => {
-  try {
-    const { id } = req.user;
+  const userId = req.user.id;
     const { businessId } = req.params;
 
-    if (!id || !businessId) {
+    if (!userId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameters.",
+        message: "User ID is required.",
       });
     }
+    if (!userId || !businessId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Business ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
 
+  try {
+   
     const business = await MsmeInformation.findOne({
-      where: { userId: id, id: businessId },
+      where: { userId, id: businessId },
+      transaction,
     });
 
     if (!business) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "Business not found.",
       });
     }
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Business visibility status retrieved successfully!",
-      data: business.isVisibility,
+      message: "Business visibility status retrieved successfully.",
+      data: { isVisible: !!business.isVisibility },
     });
+
   } catch (error) {
+    await transaction.rollback();
     console.error("Error retrieving business visibility:", error);
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.allSingleUserMsme = async (req, res) => {
-  try {
-    const id = req.user.id;
-
-    if (!id) {
+   const userId = req.user.id;
+    if (!userId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Empty parameter: userId is required.",
       });
     }
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
 
-    const msmeInformation = await MsmeInformation.findAll({
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
-        userId: id,
-        status: {
-          [Op.not]: "Pending",
-        },
+        userId,
+        status: { [Op.not]: "Pending" },
       },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
+      distinct: true,
+      transaction,
     });
 
-    if (!msmeInformation) {
+    if (rows.length === 0) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "MSME information not found",
+        message: "No MSME information found for this user.",
       });
     }
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "MSME information retrieved successfully!",
-      data: msmeInformation,
+      message: "MSME information retrieved successfully.",
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: rows,
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("All Single User MSME Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.single = async (req, res) => {
-  try {
-    const { businessId } = req.params;
 
+exports.single = async (req, res) => {
+  const { businessId } = req.params;
     if (!businessId) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Business ID is required.",
       });
     }
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
 
+  try {
+    
     const msmeInformation = await MsmeInformation.findOne({
       where: {
         id: businessId,
@@ -892,112 +1153,127 @@ exports.single = async (req, res) => {
         isBlocked: false,
       },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
+      transaction,
     });
 
     if (!msmeInformation) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "MSME information not found",
       });
     }
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "MSME information retrieved successfully!",
+      message: "MSME information retrieved successfully.",
       data: msmeInformation,
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Single MSME Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
-exports.singleRejected = async (req, res) => {
-  try {
-    const { businessId } = req.params;
 
+exports.singleRejected = async (req, res) => {
+  const { businessId } = req.params;
     if (!businessId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Business ID is required.",
       });
     }
+  const transaction = await sequelize.transaction({
+    isolationLevel: sequelize.Transaction.ISOLATION_LEVELS.READ_COMMITTED,
+  });
+
+  try {
 
     const msmeInformation = await MsmeInformation.findOne({
       where: {
         id: businessId,
         [Op.or]: [
-          { status: "Rejected",}, 
-          { status: "Incomplete",},
-        ] 
+          { status: "Rejected" },
+          { status: "Incomplete" },
+        ],
       },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
+      transaction,
     });
 
     if (!msmeInformation) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "MSME information not found",
+        message: "MSME information not found for Rejected/Incomplete status.",
       });
     }
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "MSME information retrieved successfully!",
+      message: "MSME information retrieved successfully.",
       data: msmeInformation,
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Single Rejected MSME Error:", error);
+
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error.",
+      error: error.message,
     });
   }
 };
 
 exports.update = async (req, res) => {
+  const { businessId } = req.params;
+    if (!businessId) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Business ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
+
   try {
-    const { businessId } = req.params;
-    let businessLogo = null;
-    let {
-      numberOfEmployees,
-      businessDisplayName,
+    
+    const business = await MsmeInformation.findOne({ where: { id: businessId }, transaction });
+    if (!business) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Business not found.",
+      });
+    }
+
+    const {
       businessRegistrationName,
       businessRegistrationNumber,
+      businessDisplayName,
       typeOfBusiness,
       description,
       region,
@@ -1018,6 +1294,7 @@ exports.update = async (req, res) => {
       facebook,
       instagram,
       linkedln,
+      numberOfEmployees,
       monday,
       tuesday,
       wednesday,
@@ -1025,49 +1302,31 @@ exports.update = async (req, res) => {
       friday,
       saturday,
       sunday,
+      removeImage,
       removeImage1,
       removeImage2,
       removeImage3,
-      removeImage,
     } = req.body;
-    console.log(req.body);
-    const business = await MsmeInformation.findOne({
-      where: {
-        id: businessId,
-      },
-    });
-    if (!business) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "Business not found.",
-      });
-    }
 
-    if(businessRegistrationName){
-      if (businessRegistrationName !== business.businessRegistrationName) {
-        const alreadyExist = await MsmeInformation.findOne({
-          where: { businessRegistrationName },
+    if (businessRegistrationName && businessRegistrationName !== business.businessRegistrationName) {
+      const existsName = await MsmeInformation.findOne({ where: { businessRegistrationName }, transaction });
+      if (existsName) {
+        await transaction.rollback();
+        return res.status(409).json({
+          status: "FAILURE",
+          message: "Business registration name already in use.",
         });
-        if (alreadyExist) {
-          return res.status(404).json({
-            status: "FAILURE",
-            message: "Business registration name already in use.",
-          });
-        }
       }
     }
 
-    if(businessRegistrationNumber){
-      if (businessRegistrationNumber !== business.businessRegistrationNumber) {
-        const alreadyExist = await MsmeInformation.findOne({
-          where: { businessRegistrationNumber },
+    if (businessRegistrationNumber && businessRegistrationNumber !== business.businessRegistrationNumber) {
+      const existsNumber = await MsmeInformation.findOne({ where: { businessRegistrationNumber }, transaction });
+      if (existsNumber) {
+        await transaction.rollback();
+        return res.status(409).json({
+          status: "FAILURE",
+          message: "Business registration number already in use.",
         });
-        if (alreadyExist) {
-          return res.status(404).json({
-            status: "FAILURE",
-            message: "Business registration number already in use.",
-          });
-        }
       }
     }
 
@@ -1085,16 +1344,12 @@ exports.update = async (req, res) => {
         yearOfEstablishment,
         annualTurnover,
       },
-      { where: { id: businessId } }
+      { where: { id: businessId }, transaction }
     );
 
     await MsmeFounderInfo.update(
-      {
-        founderName,
-        founderAge,
-        founderGender,
-      },
-      { where: { businessId } }
+      { founderName, founderAge, founderGender },
+      { where: { businessId }, transaction }
     );
 
     await MsmeContactInfo.update(
@@ -1109,193 +1364,84 @@ exports.update = async (req, res) => {
         instagram,
         linkedIn: linkedln,
       },
-      { where: { businessId } }
+      { where: { businessId }, transaction }
     );
 
-    const existing = await MsmeInformation.findOne({
-      where: { id: businessId },
-    });
+    const existingAdditional = await MsmeAdditionalInfo.findOne({ where: { businessId }, transaction });
+
+    let businessLogo = existingAdditional?.businessLogo || null;
 
     if (removeImage) {
-      const oldLogoPath = path.join("public", "msmes", existing.businessLogo);
-      if (fs.existsSync(oldLogoPath)) {
-        fs.unlinkSync(oldLogoPath);
+      if (businessLogo) {
+        const oldPath = path.join("public", "msmes", businessLogo);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
-      const businessIcon = await PrimaryIndustry.findOne({
-        where: {
-          industryName: primaryIndustry,
-        },
-      });
 
-      if (businessIcon && businessIcon.industryIcon) {
-        const sourcePath = path.join(
-          "public",
-          "primary-industries",
-          businessIcon.industryIcon
-        );
-        const destPath = path.join(
-          "public",
-          "msmes",
-          businessIcon.industryIcon
-        );
-
+      const industry = await PrimaryIndustry.findOne({ where: { industryName: primaryIndustry }, transaction });
+      if (industry?.industryIcon) {
+        const sourcePath = path.join("public", "primary-industries", industry.industryIcon);
+        const destPath = path.join("public", "msmes", industry.industryIcon);
         fs.copyFileSync(sourcePath, destPath);
-        businessLogo = businessIcon.industryIcon;
-
-        await MsmeAdditionalInfo.update(
-          { businessLogo },
-          { where: { businessId } }
-        );
+        businessLogo = industry.industryIcon;
       }
     }
 
-    if (req.files?.businessLogo && req.files.businessLogo[0].filename) {
-      const businessLogo = req.files.businessLogo[0].filename;
+    if (req.files?.businessLogo?.[0]?.filename) {
+      if (businessLogo) {
+        const oldPath = path.join("public", "msmes", businessLogo);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+      businessLogo = req.files.businessLogo[0].filename;
+    }
 
-      if (existing?.businessLogo) {
-        const oldLogoPath = path.join("public", "msmes", existing.businessLogo);
-        if (fs.existsSync(oldLogoPath)) {
-          fs.unlinkSync(oldLogoPath);
+    await MsmeAdditionalInfo.update(
+      { businessLogo, numberOfEmployees },
+      { where: { businessId }, transaction }
+    );
+
+    const handleImage = async (field, removeFlag) => {
+      if (removeFlag && existingAdditional?.[field]) {
+        const oldPath = path.join("public", "msmes", existingAdditional[field]);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        await MsmeAdditionalInfo.update({ [field]: null }, { where: { businessId }, transaction });
+      }
+      if (req.files?.[field]?.[0]?.filename) {
+        if (existingAdditional?.[field]) {
+          const oldPath = path.join("public", "msmes", existingAdditional[field]);
+          if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
         }
+        const newFile = req.files[field][0].filename;
+        await MsmeAdditionalInfo.update({ [field]: newFile }, { where: { businessId }, transaction });
       }
+    };
 
-      await MsmeAdditionalInfo.update(
-        { businessLogo, numberOfEmployees },
-        { where: { businessId } }
-      );
-    }
-
-    if (removeImage1) {
-      const existing = await MsmeAdditionalInfo.findOne({
-        where: { businessId },
-      });
-      if (existing?.image1) {
-        const oldImage1Path = path.join("public", "msmes", existing.image1);
-        if (fs.existsSync(oldImage1Path)) {
-          fs.unlinkSync(oldImage1Path);
-        }
-        await MsmeAdditionalInfo.update(
-          { image1: null },
-          { where: { businessId } }
-        );
-      }
-    }
-
-    if (req.files?.image1) {
-      const newImage1 = req.files.image1[0].filename;
-
-      if (existing?.image1) {
-        const oldImage1Path = path.join("public", "msmes", existing.image1);
-        if (fs.existsSync(oldImage1Path)) {
-          fs.unlinkSync(oldImage1Path);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image1: newImage1 },
-        { where: { businessId } }
-      );
-    }
-
-    if (removeImage2) {
-      const existing = await MsmeAdditionalInfo.findOne({
-        where: { businessId },
-      });
-      if (existing?.image2) {
-        const oldImage2Path = path.join("public", "msmes", existing.image2);
-        if (fs.existsSync(oldImage2Path)) {
-          fs.unlinkSync(oldImage2Path);
-        }
-        await MsmeAdditionalInfo.update(
-          { image2: null },
-          { where: { businessId } }
-        );
-      }
-    }
-    if (req.files?.image2) {
-      const newImage2 = req.files.image2[0].filename;
-
-      if (existing?.image2) {
-        const oldImage2Path = path.join("public", "msmes", existing.image2);
-        if (fs.existsSync(oldImage2Path)) {
-          fs.unlinkSync(oldImage2Path);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image2: newImage2 },
-        { where: { businessId } }
-      );
-    }
-
-    if (removeImage3) {
-      const existing = await MsmeAdditionalInfo.findOne({
-        where: { businessId },
-      });
-      if (existing?.image3) {
-        const oldImage3Path = path.join("public", "msmes", existing.image3);
-        if (fs.existsSync(oldImage3Path)) {
-          fs.unlinkSync(oldImage3Path);
-        }
-        await MsmeAdditionalInfo.update(
-          { image3: null },
-          { where: { businessId } }
-        );
-      }
-    }
-
-    if (req.files?.image3) {
-      const newImage3 = req.files.image3[0].filename;
-
-      if (existing?.image3) {
-        const oldImage3Path = path.join("public", "msmes", existing.image3);
-        if (fs.existsSync(oldImage3Path)) {
-          fs.unlinkSync(oldImage3Path);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image3: newImage3 },
-        { where: { businessId } }
-      );
-    }
+    await handleImage("image1", removeImage1);
+    await handleImage("image2", removeImage2);
+    await handleImage("image3", removeImage3);
 
     await BusinessHour.update(
-      {
-        monday,
-        tuesday,
-        wednesday,
-        thursday,
-        friday,
-        saturday,
-        sunday,
-      },
-      { where: { businessId } }
+      { monday, tuesday, wednesday, thursday, friday, saturday, sunday },
+      { where: { businessId }, transaction }
     );
-    if (existing.status === "Rejected" || existing.status === "Incomplete") {
+
+    if (["Rejected", "Incomplete"].includes(existingAdditional?.status)) {
       await MsmeInformation.update(
-        {
-          status: "Pending",
-        },
-        {
-          where: {
-            id: businessId,
-          },
-        }
+        { status: "Pending" },
+        { where: { id: businessId }, transaction }
       );
     }
-    const newUpdate = await MsmeInformation.findOne({
-      where: {
-        id: businessId,
-      },
-    });
-    console.log(newUpdate);
-    res.status(200).json({
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Business successfully updated!",
     });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Business Update Error:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
@@ -1352,355 +1498,214 @@ exports.updateTest = async (req, res) => {
 };
 
 exports.updateLogo = async (req, res) => {
-  try {
-    const userId = req.user.id;
+  const userId = req.user.id;
     const { businessId } = req.params;
 
-    if (!businessId || !userId) {
+    if (!userId) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "User ID is required.",
       });
     }
+    if (!businessId) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
 
-    const checkExistingUser = await User.findOne({
-      where: { id: userId },
-    });
+  try {
+    
 
-    if (!checkExistingUser) {
+    const user = await User.findOne({ where: { id: userId }, transaction });
+    if (!user) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
+        message: "User does not exist in the system.",
       });
     }
-    const existing = await MsmeAdditionalInfo.findOne({
+
+    const additionalInfo = await MsmeAdditionalInfo.findOne({
       where: { businessId },
+      transaction,
     });
-
-    if (!existing) {
+    if (!additionalInfo) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "The business resource does not exist on the system.",
+        message: "The business resource does not exist.",
       });
     }
 
-    if (req.file) {
-      const businessLogo = req.file.filename;
-
-      if (existing.businessLogo) {
-        const oldLogoPath = path.join("public", "msmes", existing.businessLogo);
-        if (fs.existsSync(oldLogoPath)) {
-          fs.unlinkSync(oldLogoPath);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { businessLogo },
-        {
-          where: { businessId },
-        }
-      );
-      if (existing.status === "Rejected" || existing.status === "Incomplete") {
-        await MsmeInformation.update(
-          {
-            status: "Pending",
-          },
-          {
-            where: {
-              id: businessId,
-            },
-          }
-        );
-      }
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Business logo successfully updated",
-      });
-    } else {
+    if (!req.file || !req.file.filename) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "No business logo was uploaded",
+        message: "No business logo was uploaded.",
       });
     }
+
+    const newLogo = req.file.filename;
+
+    if (additionalInfo.businessLogo) {
+      const oldLogoPath = path.join("public", "msmes", additionalInfo.businessLogo);
+      if (fs.existsSync(oldLogoPath)) {
+        fs.unlinkSync(oldLogoPath);
+      }
+    }
+
+    await MsmeAdditionalInfo.update(
+      { businessLogo: newLogo },
+      { where: { businessId }, transaction }
+    );
+
+    if (["Rejected", "Incomplete"].includes(additionalInfo.status)) {
+      await MsmeInformation.update(
+        { status: "Pending" },
+        { where: { id: businessId }, transaction }
+      );
+    }
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Business logo successfully updated.",
+    });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error updating business logo:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
-exports.updateImage1 = async (req, res) => {
-  try {
-    const userId = req.user.id;
+
+const updateBusinessImage = async (req, res, imageField) => {
+  const userId = req.user.id;
     const { businessId } = req.params;
-
-    if (!businessId || !userId) {
+  if (!userId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "User ID is required.",
       });
     }
+    if (!businessId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
 
-    const checkExistingUser = await User.findOne({
-      where: { id: userId },
-    });
+  try {
 
-    if (!checkExistingUser) {
+    const user = await User.findOne({ where: { id: userId }, transaction });
+    if (!user) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
+        message: "User does not exist in the system.",
       });
     }
 
-    const existing = await MsmeAdditionalInfo.findOne({
+    const additionalInfo = await MsmeAdditionalInfo.findOne({
       where: { businessId },
+      transaction,
     });
-
-    if (!existing) {
+    if (!additionalInfo) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "The business resource does not exist on the system.",
+        message: "The business resource does not exist.",
       });
     }
 
-    if (req.file) {
-      const image1 = req.file.filename;
-
-      if (existing.image1) {
-        const oldImagePath = path.join("public", "msmes", existing.image1);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image1 },
-        {
-          where: { businessId },
-        }
-      );
-      if (existing.status === "Rejected" || existing.status === "Incomplete") {
-        await MsmeInformation.update(
-          {
-            status: "Pending",
-          },
-          {
-            where: {
-              id: businessId,
-            },
-          }
-        );
-      }
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Image 1 picture updated",
-      });
-    } else {
+    if (!req.file || !req.file.filename) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "No image1 was uploaded",
+        message: `No ${imageField} was uploaded.`,
       });
     }
+
+    const newImage = req.file.filename;
+
+    if (additionalInfo[imageField]) {
+      const oldImagePath = path.join("public", "msmes", additionalInfo[imageField]);
+      if (fs.existsSync(oldImagePath)) {
+        fs.unlinkSync(oldImagePath);
+      }
+    }
+
+    await MsmeAdditionalInfo.update(
+      { [imageField]: newImage },
+      { where: { businessId }, transaction }
+    );
+
+    if (["Rejected", "Incomplete"].includes(additionalInfo.status)) {
+      await MsmeInformation.update(
+        { status: "Pending" },
+        { where: { id: businessId }, transaction }
+      );
+    }
+
+    await transaction.commit();
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: `${imageField} successfully updated.`,
+    });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error(`Error updating ${imageField}:`, error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
-exports.updateImage2 = async (req, res) => {
-  try {
-    const userId = req.user.id;
+
+exports.updateImage1 = (req, res) => updateBusinessImage(req, res, "image1");
+exports.updateImage2 = (req, res) => updateBusinessImage(req, res, "image2");
+exports.updateImage3 = (req, res) => updateBusinessImage(req, res, "image3");
+
+exports.updateBusinessHours = async (req, res) => {
+   const userId = req.user.id;
     const { businessId } = req.params;
-
-    if (!businessId || !userId) {
+    const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } = req.body;
+   if (!userId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "User ID is required.",
       });
     }
-
-    const checkExistingUser = await User.findOne({
-      where: { id: userId },
-    });
-
-    if (!checkExistingUser) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
-      });
-    }
-
-    const existing = await MsmeAdditionalInfo.findOne({
-      where: { businessId },
-    });
-
-    if (!existing) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "The business resource does not exist on the system.",
-      });
-    }
-
-    if (req.file) {
-      const image2 = req.file.filename;
-
-      if (existing.image2) {
-        const oldImagePath = path.join("public", "msmes", existing.image2);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image2 },
-        {
-          where: { businessId },
-        }
-      );
-      if (existing.status === "Rejected" || existing.status === "Incomplete") {
-        await MsmeInformation.update(
-          {
-            status: "Pending",
-          },
-          {
-            where: {
-              id: businessId,
-            },
-          }
-        );
-      }
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Image 2 picture updated",
-      });
-    } else {
+    if (!businessId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "No image2 was uploaded",
+        message: "User ID is required.",
       });
     }
-  } catch (error) {
-    res.status(500).json({
-      status: "FAILURE",
-      message: "Internal server error: " + error.message,
-    });
-  }
-};
-exports.updateImage3 = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const userId = req.user.id;
-    const { businessId } = req.params;
 
-    if (!businessId || !userId) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Empty parameter",
-      });
-    }
-
-    const checkExistingUser = await User.findOne({
-      where: { id: userId },
-    });
-
-    if (!checkExistingUser) {
+    const user = await User.findOne({ where: { id: userId }, transaction });
+    if (!user) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
+        message: "User trying to access this resource does not exist on the system.",
       });
     }
 
-    const existing = await MsmeAdditionalInfo.findOne({
-      where: { businessId },
-    });
-
-    if (!existing) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "The business resource does not exist on the system.",
-      });
-    }
-
-    if (req.file) {
-      const image3 = req.file.filename;
-
-      if (existing.image3) {
-        const oldImagePath = path.join("public", "msmes", existing.image3);
-        if (fs.existsSync(oldImagePath)) {
-          fs.unlinkSync(oldImagePath);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image3 },
-        {
-          where: { businessId },
-        }
-      );
-      if (existing.status === "Rejected" || existing.status === "Incomplete") {
-        await MsmeInformation.update(
-          {
-            status: "Pending",
-          },
-          {
-            where: {
-              id: businessId,
-            },
-          }
-        );
-      }
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Image 3 picture updated",
-      });
-    } else {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "No image3 was uploaded",
-      });
-    }
-  } catch (error) {
-    res.status(500).json({
-      status: "FAILURE",
-      message: "Internal server error: " + error.message,
-    });
-  }
-};
-exports.businessHours = async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { businessId } = req.params;
-    const { monday, tuesday, wednesday, thursday, friday, saturday, sunday } =
-      req.body;
-    if (!businessId || !userId) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Empty parameter",
-      });
-    }
-    const checkExistingUser = await User.findOne({
-      where: {
-        id: userId,
-      },
-    });
-
-    if (!checkExistingUser) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
-      });
-    }
-    const existing = await MsmeAdditionalInfo.findOne({
-      where: {
-        businessId,
-      },
-    });
-    if (!existing) {
+    const additionalInfo = await MsmeAdditionalInfo.findOne({ where: { businessId }, transaction });
+    if (!additionalInfo) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "The business resource does not exist on the system.",
@@ -1708,157 +1713,161 @@ exports.businessHours = async (req, res) => {
     }
 
     await BusinessHour.update(
-      {
-        monday,
-        tuesday,
-        wednesday,
-        thursday,
-        friday,
-        saturday,
-        sunday,
-      },
-      {
-        where: {
-          businessId,
-        },
-      }
+      { monday, tuesday, wednesday, thursday, friday, saturday, sunday },
+      { where: { businessId }, transaction }
     );
-    if (existing.status === "Rejected") {
+
+    if (["Rejected", "Incomplete"].includes(additionalInfo.status)) {
       await MsmeInformation.update(
-        {
-          status: "Pending",
-        },
-        {
-          where: {
-            id: businessId,
-          },
-        }
+        { status: "Pending" },
+        { where: { id: businessId }, transaction }
       );
     }
-    res.status(200).json({
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Image 3 picture updated",
+      message: "Business hours updated successfully.",
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error updating business hours:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.delete = async (req, res) => {
-  try {
-    const id = req.user.id;
+  const userId = req.user.id;
     const { businessId } = req.params;
 
-    if (!businessId || !id) {
+    if (!userId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "User ID is required.",
       });
     }
-    const checkExistingUser = await User.findOne({ where: { id } });
+    if (!businessId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Business ID is required.",
+      });
+    }
+  const t = await sequelize.transaction();
+  try {
+    
 
-    if (!checkExistingUser) {
+    const user = await User.findOne({ where: { id: userId } });
+    if (!user) {
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
+        message: "User trying to access this resource does not exist on the system.",
       });
     }
 
-    const checkBusiness = await MsmeInformation.findOne({
-      where: { id: businessId },
-    });
-
-    if (!checkBusiness) {
+    const business = await MsmeInformation.findOne({ where: { id: businessId } });
+    if (!business) {
       return res.status(404).json({
         status: "FAILURE",
         message: "The business does not exist on the system.",
       });
     }
 
-    const { businessLogo, image1, image2, image3 } = checkBusiness;
-
-    const imagePaths = [businessLogo, image1, image2, image3];
-
-    imagePaths.forEach((imagePath) => {
-      if (imagePath) {
-        const fullPath = path.join("public", "msmes", imagePath);
+    const { businessLogo, image1, image2, image3 } = business;
+    [businessLogo, image1, image2, image3].forEach((file) => {
+      if (file) {
+        const fullPath = path.join("public", "msmes", file);
         if (fs.existsSync(fullPath)) {
           fs.unlinkSync(fullPath);
         }
       }
     });
 
-    await MsmeInformation.destroy({ where: { id: businessId } });
-    await MsmeFounderInfo.destroy({ where: { businessId } });
-    await MsmeContactInfo.destroy({ where: { businessId } });
-    await MsmeAdditionalInfo.destroy({ where: { businessId } });
-    await BusinessHour.destroy({ where: { businessId } });
+    await MsmeFounderInfo.destroy({ where: { businessId }, transaction: t });
+    await MsmeContactInfo.destroy({ where: { businessId }, transaction: t });
+    await MsmeAdditionalInfo.destroy({ where: { businessId }, transaction: t });
+    await BusinessHour.destroy({ where: { businessId }, transaction: t });
+    await MsmeInformation.destroy({ where: { id: businessId }, transaction: t });
 
-    res.status(200).json({
+    await t.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Business and associated images successfully deleted!",
+      message: "Business and all associated records and images successfully deleted.",
     });
   } catch (error) {
-    res.status(500).json({
+    await t.rollback();
+    console.error("Error deleting business:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.visibility = async (req, res) => {
-  try {
-    const id = req.user.id;
+   const userId = req.user.id;
     const { businessId, visibility } = req.body;
 
-    if (!businessId || !id) {
+    if (!userId) {
       return res.status(400).json({
         status: "FAILURE",
-        message: `Empty parameter,${businessId}${visibility}${id}`,
+        message: "User ID is required.",
       });
     }
-    const checkExistingUser = await User.findOne({
-      where: {
-        id,
-      },
-    });
 
-    if (!checkExistingUser) {
+    if (!businessId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Business ID is required.",
+      });
+    }
+
+    if (typeof visibility !== "boolean") {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Visibility must be a boolean value.",
+      });
+    }
+  const transaction = await sequelize.transaction();
+  try {
+   
+    const existingUser = await User.findOne({ where: { id: userId }, transaction });
+    if (!existingUser) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message:
-          "User trying to access this resource does not exist on the system.",
+        message: "User trying to access this resource does not exist on the system.",
       });
     }
-    const checkBusiness = await MsmeInformation.findOne({
-      where: {
-        id: businessId,
-      },
-    });
-    if (!checkBusiness) {
+
+    const business = await MsmeInformation.findOne({ where: { id: businessId }, transaction });
+    if (!business) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "Business does not exist on the system.",
       });
     }
+
     await MsmeInformation.update(
-      {
-        isVisibility: visibility,
-      },
-      {
-        where: {
-          id: businessId,
-        },
-      }
+      { isVisibility: visibility },
+      { where: { id: businessId }, transaction }
     );
-    res.status(200).json({
+
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Visibility successfully updated!",
+      message: `Business visibility successfully updated to ${visibility}.`,
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error updating business visibility:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
