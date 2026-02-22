@@ -5,7 +5,7 @@ const {checkAdmin} = require('../../middlewares/web/authMiddleware');
 const primaryIndustryUploadMiddleware = require('../../middlewares/shared/primaryIndustryUploadMiddleware');
 const primaryIndustryAdminRouter = Router();
 
-primaryIndustryAdminRouter.post('/create',tokenAuthMiddleware, checkAdmin, primaryIndustryUploadMiddleware.uploadSingle, primaryIndustryAdminController.create);
+primaryIndustryAdminRouter.post('/create', primaryIndustryUploadMiddleware.uploadSingle, primaryIndustryAdminController.create);
 
 primaryIndustryAdminRouter.get('/all',tokenAuthMiddleware, checkAdmin, primaryIndustryAdminController.all);
 primaryIndustryAdminRouter.get('/single/:id',tokenAuthMiddleware, checkAdmin, primaryIndustryAdminController.single);

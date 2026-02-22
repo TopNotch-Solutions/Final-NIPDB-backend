@@ -4,7 +4,7 @@ const {tokenAuthMiddleware} = require("../../middlewares/web/authMiddleware");
 const {checkAdmin} = require('../../middlewares/web/authMiddleware');
 const secondaryIndustryAdminRouter = Router();
 
-secondaryIndustryAdminRouter.post('/create',tokenAuthMiddleware, checkAdmin, secondaryIndustryAdminController.create);
+secondaryIndustryAdminRouter.post('/create',secondaryIndustryAdminController.create);
 
 secondaryIndustryAdminRouter.get('/all',tokenAuthMiddleware, checkAdmin,secondaryIndustryAdminController.all);
 secondaryIndustryAdminRouter.get('/single/:id',tokenAuthMiddleware, checkAdmin, secondaryIndustryAdminController.single);
