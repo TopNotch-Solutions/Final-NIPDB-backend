@@ -19,14 +19,6 @@ const AdminNotification = sequelize.define(
             type: DataTypes.TEXT('long'),
             allowNull: false
           },
-          createdAt: {
-            type: DataTypes.DATEONLY,
-            allowNull: false,
-            get() {
-              const rawValue = this.getDataValue('createdAt');
-              return rawValue ? rawValue.toISOString().split('T')[0] : null;
-            },
-          },
           viewed: {
             type: DataTypes.BOOLEAN,
             allowNull: false,
@@ -55,7 +47,7 @@ const AdminNotification = sequelize.define(
           }
           
     },{
-        timestamps: false 
+        timestamps: true
       }
 );
 
