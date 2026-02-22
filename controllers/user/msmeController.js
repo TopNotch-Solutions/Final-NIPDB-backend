@@ -287,7 +287,7 @@ exports.create = async (req, res) => {
     );
 
     await transaction.commit();
-    await sendEmail({
+    sendEmail({
       email: checkExistingUser.email,
       subject: "Application to in4msme pending approval",
       notification: "pending",

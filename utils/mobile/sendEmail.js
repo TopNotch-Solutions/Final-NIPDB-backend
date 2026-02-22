@@ -1,7 +1,7 @@
 const nodemailer = require("nodemailer");
 require("dotenv").config();
 
-const sendEmail = async ({ email, subject, notification }, res) => {
+const sendEmail = async ({ email, subject, notification }) => {
 
   if (!notification) {
       return res.status(400).json({
@@ -22,7 +22,6 @@ const sendEmail = async ({ email, subject, notification }, res) => {
         message: "Email subject required fields",
       });
     }
-  try {
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -76,13 +75,7 @@ const sendEmail = async ({ email, subject, notification }, res) => {
       `
     };
 
-    if (!templates[notification]) {
-      return res.status(400).json({
-        success: false,
-        statusCode: 400,
-        message: "The specified notification type is not recognized."
-      });
-    }
+    if (!templates[notification]) throw new Error("Notification type not recognized");
 
     const mailOptions = {
       from: process.env.USERNAME,
@@ -109,26 +102,13 @@ const sendEmail = async ({ email, subject, notification }, res) => {
       `
     };
 
+     try {
     await transporter.sendMail(mailOptions);
-
-    return res.status(200).json({
-      success: true,
-      statusCode: 200,
-      message: `Email (${notification}) sent successfully to ${email}.`,
-      meta: { timestamp: new Date().toISOString() }
-    });
-
+    console.log(`Email (${notification}) sent successfully to ${email}`);
   } catch (error) {
-    console.error("Email Service Error:", {
-      message: error.message,
-      stack: error.stack
-    });
-
-    return res.status(503).json({
-      status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
-    });
+    console.error("Failed to send email:", error.message);
   }
+
 };
 
 module.exports = sendEmail;
