@@ -37,9 +37,10 @@ exports.all = async (req, res) => {
     const bso = await BSO.findOne({ where: { id } });
 
     if (!bso) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: `No BSO found with ID: ${id}`,
+        data: []
       });
     }
 

@@ -5,7 +5,7 @@ exports.all = async (req, res) => {
     const secondaryIndustries = await SecondaryIndustry.findAll();
 
     if (!secondaryIndustries || secondaryIndustries.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No secondary industries found.",
         data: []
@@ -40,7 +40,7 @@ exports.single = async (req, res) => {
     const secondaryIndustry = await SecondaryIndustry.findOne({ where: { id } });
 
     if (!secondaryIndustry) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "The secondary industry provided does not exist.",
         data: []

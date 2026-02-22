@@ -5,7 +5,7 @@ exports.all = async (req, res) => {
     const regions = await Region.findAll();
 
     if (!regions || regions.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No regions found.",
         data: []
@@ -41,7 +41,7 @@ exports.single = async (req, res) => {
     const region = await Region.findOne({ where: { id } });
 
     if (!region) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "The region provided does not exist.",
         data: []

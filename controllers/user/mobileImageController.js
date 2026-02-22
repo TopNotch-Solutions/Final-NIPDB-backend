@@ -5,9 +5,10 @@ exports.all = async (req, res) => {
     const images = await MobileImage.findAll();
 
     if (!images || images.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No mobile images found.",
+        data: []
       });
     }
 
@@ -40,9 +41,10 @@ exports.single = async (req, res) => {
     const image = await MobileImage.findOne({ where: { id } });
 
     if (!image) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: `No mobile image found with ID: ${id}`,
+        data: []
       });
     }
 

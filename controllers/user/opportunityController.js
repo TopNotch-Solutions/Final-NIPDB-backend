@@ -7,7 +7,7 @@ exports.allGeneral = async (req, res) => {
     });
 
     if (!allOpportunities || allOpportunities.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No opportunities found for General User.",
         data:[]
@@ -45,9 +45,10 @@ exports.singleGeneral = async (req, res) => {
     });
 
     if (!opportunity) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "Opportunity not found for General User.",
+        data: []
       });
     }
 
@@ -72,7 +73,7 @@ exports.allBusiness = async (req, res) => {
     });
 
     if (!allOpportunities || allOpportunities.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No opportunities found for Business User.",
         data: []
@@ -110,7 +111,7 @@ exports.singleBusiness = async (req, res) => {
     });
 
     if (!opportunity) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "Opportunity not found for Business User.",
         data: []

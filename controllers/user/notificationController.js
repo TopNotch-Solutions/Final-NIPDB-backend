@@ -19,7 +19,7 @@ exports.allUserNotfication = async (req, res) => {
     });
 
     if (!notifications || notifications.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No notifications found for this user.",
         data: []
@@ -62,7 +62,7 @@ exports.unreadNotification = async (req, res) => {
     });
 
     if (!unreadNotifications || unreadNotifications.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No unread notifications found for this user.",
         data: []
@@ -104,7 +104,7 @@ exports.readNotification = async (req, res) => {
     });
 
     if (!readNotifications || readNotifications.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No read notifications found for this user.",
         data: []

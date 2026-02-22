@@ -5,7 +5,7 @@ exports.all = async (req, res) => {
     const towns = await Town.findAll();
 
     if (!towns || towns.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No towns found.",
         data: []
@@ -41,7 +41,7 @@ exports.single = async (req, res) => {
     const town = await Town.findOne({ where: { id } });
 
     if (!town) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "The town provided does not exist.",
         data: []
@@ -76,7 +76,7 @@ exports.getTownsByRegion = async (req, res) => {
     const towns = await Town.findAll({ where: { regionId } });
 
     if (!towns || towns.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No towns found for the provided region.",
         data: []

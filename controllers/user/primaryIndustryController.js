@@ -4,7 +4,7 @@ exports.all = async (req, res) => {
     const primaryIndustries = await PrimaryIndustry.findAll();
 
     if (!primaryIndustries || primaryIndustries.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No industries found.",
         data: []
@@ -32,7 +32,7 @@ exports.allIndustryName = async (req, res) => {
     });
 
     if (!primaryIndustries || primaryIndustries.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No industries found.",
         data: []
@@ -68,7 +68,7 @@ exports.single = async (req, res) => {
     const primaryIndustry = await PrimaryIndustry.findOne({ where: { id } });
 
     if (!primaryIndustry) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "Industry not found.",
         data: []
@@ -96,7 +96,7 @@ exports.allWithoutIcon = async (req, res) => {
     });
 
     if (!primaryIndustries || primaryIndustries.length === 0) {
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No industries found.",
         data: []
