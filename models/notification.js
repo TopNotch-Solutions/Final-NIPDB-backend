@@ -23,10 +23,6 @@ const Notification = sequelize.define(
             type: DataTypes.TEXT('long'),
             allowNull: false
           },
-          createdAt: {
-            type: DataTypes.DATE,
-            allowNull: false,
-          },
           senderId: {
             type: DataTypes.BIGINT,
             allowNull: false,
@@ -60,7 +56,7 @@ const Notification = sequelize.define(
           }
           
     },{
-        timestamps: false 
+        timestamps: true 
       }
 );
 // MsmeInformation.hasOne(MsmeFounderInfo, { as: 'founderInfo', foreignKey: 'businessId' });
