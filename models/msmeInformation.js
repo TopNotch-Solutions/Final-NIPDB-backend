@@ -85,19 +85,10 @@ const MsmeInformation = sequelize.define(
           userId: {
             type: DataTypes.BIGINT,
             allowNull: false
-          },
-          createdAt:{
-            type: DataTypes.DATE,
-             defaultValue: new Date,
-            allowNull: false,
-            get() {
-              const rawValue = this.getDataValue('createdAt');
-              return rawValue ? rawValue.toISOString().split('T')[0] : null;
-            },
           }
           
     },{
-        timestamps: false
+        timestamps: true
       }
 );
 MsmeInformation.hasOne(MsmeFounderInfo, { as: 'founderInfo', foreignKey: 'businessId' });
