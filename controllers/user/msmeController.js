@@ -1144,9 +1144,10 @@ exports.single = async (req, res) => {
 
     if (!msmeInformation) {
       await transaction.rollback();
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "MSME information not found",
+        data: []
       });
     }
 
@@ -1201,9 +1202,10 @@ exports.singleRejected = async (req, res) => {
 
     if (!msmeInformation) {
       await transaction.rollback();
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "MSME information not found for Rejected/Incomplete status.",
+        data: []
       });
     }
 
