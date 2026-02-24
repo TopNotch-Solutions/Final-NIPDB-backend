@@ -1082,9 +1082,10 @@ exports.allSingleUserMsme = async (req, res) => {
 
     if (rows.length === 0) {
       await transaction.rollback();
-      return res.status(404).json({
+      return res.status(200).json({
         status: "FAILURE",
         message: "No MSME information found for this user.",
+        data: []
       });
     }
 
