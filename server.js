@@ -52,7 +52,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "http://localhost:3001"],
+    origin: ["http://localhost:3000", "http://41.219.71.112:8080"],
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
   },
 });
