@@ -20,7 +20,7 @@ msmeAdminRouter.get('/rejectedCount',tokenAuthMiddleware, checkAdmin, msmeAdminC
 msmeAdminRouter.get('/incompleteCount',tokenAuthMiddleware, checkAdmin, msmeAdminController.incompleteCount);
 msmeAdminRouter.get('/approvedCount',tokenAuthMiddleware, checkAdmin, msmeAdminController.approvedCount);
 msmeAdminRouter.get('/top5/categories',tokenAuthMiddleware, checkAdmin,  msmeAdminController.topCategory);
-msmeAdminRouter.get('/monthly/registeration',tokenAuthMiddleware, checkAdmin, msmeAdminController.montlyRegistration)
+msmeAdminRouter.get('/monthly/registeration',tokenAuthMiddleware, checkAdmin, msmeAdminController.monthlyRegistration)
 
 msmeAdminRouter.put('/update/:businessId', msmeUploadMiddleware.uploadMultiple, msmeAdminController.update);
 msmeAdminRouter.put('/status/:id',tokenAuthMiddleware, checkAdmin, msmeAdminController.status); // provide status Approved, Rejected
