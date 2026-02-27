@@ -34,7 +34,7 @@ const BSO = sequelize.define(
               }
           },
           description: {
-            type: DataTypes.STRING,
+            type: DataTypes.STRING(700),
             allowNull: false,
           },
           logo: {
@@ -42,7 +42,7 @@ const BSO = sequelize.define(
             allowNull: true,
           }
     },{
-        timestamps: false 
+        timestamps: true
       }
 );
 

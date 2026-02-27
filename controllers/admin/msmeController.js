@@ -21,10 +21,7 @@ const Town = require("../../models/town");
 const FcmToken = require("../../models/fcmToken");
 
 exports.create = async (req, res) => {
-  let newInformation;
-  try {
-    console.log(req.body);
-    let {
+  let {
       businessRegistrationName,
       businessRegistrationNumber,
       businessDisplayName,
@@ -58,8 +55,7 @@ exports.create = async (req, res) => {
       saturday,
       sunday,
     } = req.body;
-    console.log("This is mondays recored: ", monday);
-    //const { id } = req.user;
+
     const requiredFields = [
       "businessRegistrationName",
       "businessDisplayName",
@@ -77,12 +73,12 @@ exports.create = async (req, res) => {
       "monday",
       "tuesday",
       "wednesday",
-      "userId",
       "friday",
       "saturday",
       "sunday",
       "phoneNumber",
       "email",
+      "userId",
     ];
 
     for (const field of requiredFields) {
@@ -93,12 +89,14 @@ exports.create = async (req, res) => {
         });
       }
     }
+  const transaction = await sequelize.transaction();
 
+  try {
+    
     businessRegistrationName = CapitalizeFirstLetter(businessRegistrationName);
     businessDisplayName = CapitalizeFirstLetter(businessDisplayName);
     typeOfBusiness = CapitalizeFirstLetter(typeOfBusiness);
     description = CapitalizeFirstLetter(description);
-    region = CapitalizeFirstLetter(region);
     town = CapitalizeFirstLetter(town);
     primaryIndustry = CapitalizeFirstLetter(primaryIndustry);
     secondaryIndustry = CapitalizeFirstLetter(secondaryIndustry);
@@ -106,90 +104,94 @@ exports.create = async (req, res) => {
     founderGender = CapitalizeFirstLetter(founderGender);
     businessAddress = CapitalizeFirstLetter(businessAddress);
 
-    const checkExistingUser = await User.findOne({ where: { id: userId } });
-    if (!checkExistingUser) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message:
-          "The user you are trying to insert into the database does not exist.",
-      });
-    }
+    const checkExistingUser = await User.findOne({
+      where: { id: userId },
+      transaction,
+      lock: true,
+    });
 
-    if (checkExistingUser.role !== "User") {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "User does not have access to this route.",
-      });
-    }
+    if (!checkExistingUser)
+      throw new Error("User does not exist.");
 
     const alreadyExist = await MsmeInformation.findOne({
       where: { businessRegistrationName },
+      transaction,
     });
-    if (alreadyExist) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "Business name already in use.",
-      });
-    }
+
+    if (alreadyExist)
+      throw new Error("Business name already in use.");
+
+ 
     const selectedRegion = await Region.findOne({
-      where: {
-        id: region,
+      where: { id: region },
+      transaction,
+    });
+
+    if (!selectedRegion)
+      throw new Error("Invalid region selected.");
+
+    const newInformation = await MsmeInformation.create(
+      {
+        businessRegistrationName,
+        businessDisplayName,
+        businessAddress,
+        typeOfBusiness,
+        description,
+        region: selectedRegion.regionName,
+        town,
+        businessRegistrationNumber,
+        primaryIndustry,
+        secondaryIndustry,
+        yearOfEstablishment,
+        annualTurnover,
+        userId,
       },
-    });
+      { transaction }
+    );
 
-    newInformation = await MsmeInformation.create({
-      businessRegistrationName,
-      businessDisplayName,
-      businessAddress,
-      typeOfBusiness,
-      description,
-      region: selectedRegion.regionName,
-      town,
-      businessRegistrationNumber,
-      primaryIndustry,
-      secondaryIndustry,
-      yearOfEstablishment,
-      annualTurnover,
-      userId,
-    });
+    await MsmeFounderInfo.create(
+      {
+        businessId: newInformation.id,
+        founderName,
+        founderAge,
+        founderGender,
+      },
+      { transaction }
+    );
 
-    await MsmeFounderInfo.create({
-      businessId: newInformation.id,
-      founderName,
-      founderAge,
-      founderGender,
-    });
+    await MsmeContactInfo.create(
+      {
+        businessId: newInformation.id,
+        businessAddress,
+        phoneNumber,
+        whatsAppNumber,
+        email,
+        website,
+        twitter,
+        facebook,
+        instagram,
+        linkedIn: linkedln,
+      },
+      { transaction }
+    );
 
-    await MsmeContactInfo.create({
-      businessId: newInformation.id,
-      businessAddress,
-      phoneNumber,
-      whatsAppNumber,
-      email,
-      website,
-      twitter,
-      facebook,
-      instagram,
-      linkedIn: linkedln,
-    });
-
-    // Handle image uploads and additional info
     const files = req.files;
+
     let businessLogo = files?.businessLogo
       ? files.businessLogo[0].filename
       : null;
-    const image1 = files?.image1 ? files.image1[0].filename : null;
-    const image2 = files?.image2 ? files.image2[0].filename : null;
-    const image3 = files?.image3 ? files.image3[0].filename : null;
+
+    const image1 = files?.image1?.[0]?.filename || null;
+    const image2 = files?.image2?.[0]?.filename || null;
+    const image3 = files?.image3?.[0]?.filename || null;
 
     if (!businessLogo) {
       const businessIcon = await PrimaryIndustry.findOne({
-        where: {
-          industryName: primaryIndustry,
-        },
+        where: { industryName: primaryIndustry },
+        transaction,
       });
 
-      if (businessIcon && businessIcon.industryIcon) {
+      if (businessIcon?.industryIcon) {
         const sourcePath = path.join(
           "public",
           "primary-industries",
@@ -206,93 +208,83 @@ exports.create = async (req, res) => {
       }
     }
 
-    await MsmeAdditionalInfo.create({
-      businessId: newInformation.id,
-      numberOfEmployees,
-      businessLogo,
-      image1,
-      image2,
-      image3,
-    });
-
-    await BusinessHour.create({
-      businessId: newInformation.id,
-      monday,
-      tuesday,
-      wednesday,
-      thursday,
-      friday,
-      saturday,
-      sunday,
-    });
-
-    // Notify admins
-    const users = await Admin.findAll({
-      attributes: ["id"],
-    });
-    if (!users) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "There are no users.",
-      });
-    }
-
-    const userIds = users.map((user) => user.id);
-    const notifications = userIds.map((userId) => ({
-      userId,
-      title: "New Business Application Submitted for Review",
-      notification: `A new business application has been submitted. Please review the application details at your earliest convenience.`,
-      type: "Alert",
-      priority: "High",
-      createdAt: Date.now(),
-      viewed: false,
-    }));
-    await AdminNotification.bulkCreate(notifications);
-
-    // Notify the user
-    await Notification.create({
-      userId,
-      senderId: userId,
-      title: "Application Successfully Submitted.",
-      notification:
-        "Your form has been submitted successfully. Admin will review your application and approve or decline your form. You will be sent another notification with the status of your application. Once your application is approved it will be added to the list of your businesses on the MSME profile and your business will be visible to all users. Remember you can always turn off visibility in your profile settings if you don't want people to see your business.",
-      type: "Alert",
-      priority: "High",
-      createdAt: Date.now(),
-      viewed: false,
-    });
-
-    // Send email notification
-    await sendEmail(
+    await MsmeAdditionalInfo.create(
       {
-        email: checkExistingUser.email,
-        subject: "Application to in4msme pending approval",
-        notification: "pending",
+        businessId: newInformation.id,
+        numberOfEmployees,
+        businessLogo,
+        image1,
+        image2,
+        image3,
       },
-      res
+      { transaction }
     );
 
-    res.status(201).json({
+    await BusinessHour.create(
+      {
+        businessId: newInformation.id,
+        monday,
+        tuesday,
+        wednesday,
+        thursday,
+        friday,
+        saturday,
+        sunday,
+      },
+      { transaction }
+    );
+
+    const admins = await Admin.findAll({
+      attributes: ["id"],
+      transaction,
+    });
+
+    if (admins.length > 0) {
+      const notifications = admins.map((admin) => ({
+        userId: admin.id,
+        title: "New Business Application Submitted for Review",
+        notification:
+          "A new business application has been submitted. Please review it.",
+        type: "Alert",
+        priority: "High",
+        viewed: false,
+      }));
+
+      await AdminNotification.bulkCreate(notifications, { transaction });
+    }
+
+    await Notification.create(
+      {
+        userId,
+        senderId: userId,
+        title: "Application Successfully Submitted.",
+        notification:
+          "Your application has been submitted successfully and is pending review.",
+        type: "Alert",
+        priority: "High",
+        viewed: false,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    sendEmail({
+      email: checkExistingUser.email,
+      subject: "Application to in4msme pending approval",
+      notification: "pending",
+    });
+
+    return res.status(201).json({
       status: "SUCCESS",
       message: "Business successfully created!",
     });
+
   } catch (error) {
-    if (newInformation) {
-      await MsmeInformation.destroy({ where: { id: newInformation.id } });
-      await MsmeFounderInfo.destroy({
-        where: { businessId: newInformation.id },
-      });
-      await MsmeContactInfo.destroy({
-        where: { businessId: newInformation.id },
-      });
-      await MsmeAdditionalInfo.destroy({
-        where: { businessId: newInformation.id },
-      });
-      await BusinessHour.destroy({ where: { businessId: newInformation.id } });
-    }
-    res.status(500).json({
+    await transaction.rollback();
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal Server error",
     });
   }
 };
@@ -300,24 +292,17 @@ exports.create = async (req, res) => {
 exports.allUser = async (req, res) => {
   try {
     const allUsers = await User.findAll({
-      order: [["lastName", "ASC"]], // Assuming 'name' is the column you want to sort by
+      order: [["lastName", "ASC"]],
     });
 
-    if (!allUsers) {
-      return res.status(500).json({
-        status: "FAILURE",
-        message:
-          "Something happened during the process of retrieving user data!",
-      });
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
+      message: "All users retrieved successfully!",
       data: allUsers,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
@@ -326,111 +311,115 @@ exports.allUser = async (req, res) => {
 
 exports.all = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: Number(offset),
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
-      data: allMsmeInformations,
+      totalRecords: count,
+      currentPage: Number(page),
+      totalPages: Math.ceil(count / limit),
+      data: rows,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: error.message,
     });
   }
 };
+
 exports.allApproved = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
         status: "Approved",
       },
       order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: Number(offset),
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
-    const formattedData = allMsmeInformations.map((info) => {
-      return {
-        id: info.id,
-        registrationName: info.businessRegistrationName,
-        registrationNumber: info?.businessRegistrationNumber,
-        displayName: info.businessDisplayName,
-        typeOfBusiness: info.typeOfBusiness,
-        description: info.description,
-        annualTurnOver: info.annualTurnover,
-        yearOfEstablishment: info.yearOfEstablishment,
-        email: info.contactInfo?.email,
-        region: info.region,
-        town: info.town,
-        primaryIndustry: info.primaryIndustry,
-        foundersName: info.founderInfo?.founderName || "",
-        foundersGender: info.founderInfo?.founderGender || "",
-        foundersAge: info.founderInfo?.founderAge || "",
-        businessAddress: info.contactInfo?.businessAddress || "",
-        phoneNumber: info.contactInfo?.phoneNumber || "",
-        whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
-        businessEmail: info.contactInfo?.email || "",
-        website: info.contactInfo?.website || "",
-        twitter: info.contactInfo?.twitter || "",
-        facebook: info.contactInfo?.facebook || "",
-        instagram: info.contactInfo?.instagram || "",
-        linkedln: info.contactInfo?.linkedIn || "",
-        monday: info.businessHours?.monday || "",
-        tuesday: info.businessHours?.tuesday || "",
-        wednesday: info.businessHours?.wednesday || "",
-        thursday: info.businessHours?.thursday || "",
-        friday: info.businessHours?.friday || "",
-        saturday: info.businessHours?.saturday || "",
-        sunday: info.businessHours?.sunday || "",
-        numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
-        status: info.status,
-        isBlocked: info.isBlocked,
-        createdAt: info.createdAt,
-      };
-    });
-    res.status(200).json({
+
+    if (!rows.length) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No approved MSME records found.",
+        data: []
+      });
+    }
+
+    const formattedData = rows.map((info) => ({
+      id: info.id,
+      registrationName: info.businessRegistrationName,
+      registrationNumber: info.businessRegistrationNumber,
+      displayName: info.businessDisplayName,
+      typeOfBusiness: info.typeOfBusiness,
+      description: info.description,
+      annualTurnOver: info.annualTurnover,
+      yearOfEstablishment: info.yearOfEstablishment,
+      email: info.contactInfo?.email || "",
+      region: info.region,
+      town: info.town,
+      primaryIndustry: info.primaryIndustry,
+      foundersName: info.founderInfo?.founderName || "",
+      foundersGender: info.founderInfo?.founderGender || "",
+      foundersAge: info.founderInfo?.founderAge || "",
+      businessAddress: info.contactInfo?.businessAddress || "",
+      phoneNumber: info.contactInfo?.phoneNumber || "",
+      whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
+      businessEmail: info.contactInfo?.email || "",
+      website: info.contactInfo?.website || "",
+      twitter: info.contactInfo?.twitter || "",
+      facebook: info.contactInfo?.facebook || "",
+      instagram: info.contactInfo?.instagram || "",
+      linkedln: info.contactInfo?.linkedIn || "",
+      monday: info.businessHours?.monday || "",
+      tuesday: info.businessHours?.tuesday || "",
+      wednesday: info.businessHours?.wednesday || "",
+      thursday: info.businessHours?.thursday || "",
+      friday: info.businessHours?.friday || "",
+      saturday: info.businessHours?.saturday || "",
+      sunday: info.businessHours?.sunday || "",
+      numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
+      status: info.status,
+      isBlocked: info.isBlocked,
+      createdAt: info.createdAt,
+    }));
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
+      totalRecords: count,
+      currentPage: Number(page),
+      totalPages: Math.ceil(count / limit),
       data: formattedData,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
@@ -438,76 +427,81 @@ exports.allApproved = async (req, res) => {
 };
 exports.allPending = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
         status: "Pending",
       },
       order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: Number(offset),
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
-    const formattedData = allMsmeInformations.map((info) => {
-      return {
-        id: info.id,
-        registrationName: info.businessRegistrationName,
-        registrationNumber: info.businessRegistrationNumber,
-        displayName: info.businessDisplayName,
-        typeOfBusiness: info.typeOfBusiness,
-        description: info.description,
-        annualTurnOver: info.annualTurnover,
-        yearOfEstablishment: info.yearOfEstablishment,
-        email: info.contactInfo?.email || "",
-        region: info.region,
-        town: info.town,
-        primaryIndustry: info.primaryIndustry,
-        foundersName: info.founderInfo?.founderName || "",
-        foundersGender: info.founderInfo?.founderGender || "",
-        foundersAge: info.founderInfo?.founderAge || "",
-        businessAddress: info.contactInfo?.businessAddress || "",
-        phoneNumber: info.contactInfo?.phoneNumber || "",
-        whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
-        businessEmail: info.contactInfo?.email || "",
-        website: info.contactInfo?.website || "",
-        twitter: info.contactInfo?.twitter || "",
-        facebook: info.contactInfo?.facebook || "",
-        instagram: info.contactInfo?.instagram || "",
-        linkedln: info.contactInfo?.linkedIn || "",
-        monday: info.businessHours?.monday || "",
-        tuesday: info.businessHours?.tuesday || "",
-        wednesday: info.businessHours?.wednesday || "",
-        thursday: info.businessHours?.thursday || "",
-        friday: info.businessHours?.friday || "",
-        saturday: info.businessHours?.saturday || "",
-        sunday: info.businessHours?.sunday || "",
-        numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
-        status: info.status,
-        isBlocked: info.isBlocked,
-        createdAt: info.createdAt,
-      };
-    });
-    res.status(200).json({
+
+    if (!rows.length) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No pending MSME records found.",
+        data: []
+      });
+    }
+
+    const formattedData = rows.map((info) => ({
+      id: info.id,
+      registrationName: info.businessRegistrationName,
+      registrationNumber: info.businessRegistrationNumber,
+      displayName: info.businessDisplayName,
+      typeOfBusiness: info.typeOfBusiness,
+      description: info.description,
+      annualTurnOver: info.annualTurnover,
+      yearOfEstablishment: info.yearOfEstablishment,
+      email: info.contactInfo?.email || "",
+      region: info.region,
+      town: info.town,
+      primaryIndustry: info.primaryIndustry,
+      foundersName: info.founderInfo?.founderName || "",
+      foundersGender: info.founderInfo?.founderGender || "",
+      foundersAge: info.founderInfo?.founderAge || "",
+      businessAddress: info.contactInfo?.businessAddress || "",
+      phoneNumber: info.contactInfo?.phoneNumber || "",
+      whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
+      businessEmail: info.contactInfo?.email || "",
+      website: info.contactInfo?.website || "",
+      twitter: info.contactInfo?.twitter || "",
+      facebook: info.contactInfo?.facebook || "",
+      instagram: info.contactInfo?.instagram || "",
+      linkedln: info.contactInfo?.linkedIn || "",
+      monday: info.businessHours?.monday || "",
+      tuesday: info.businessHours?.tuesday || "",
+      wednesday: info.businessHours?.wednesday || "",
+      thursday: info.businessHours?.thursday || "",
+      friday: info.businessHours?.friday || "",
+      saturday: info.businessHours?.saturday || "",
+      sunday: info.businessHours?.sunday || "",
+      numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
+      status: info.status,
+      isBlocked: info.isBlocked,
+      createdAt: info.createdAt,
+    }));
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
+      totalRecords: count,
+      currentPage: Number(page),
+      totalPages: Math.ceil(count / limit),
       data: formattedData,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
@@ -515,267 +509,272 @@ exports.allPending = async (req, res) => {
 };
 exports.allRejected = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
         status: "Rejected",
       },
       order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: Number(offset),
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
-    const formattedData = allMsmeInformations.map((info) => {
-      return {
-        id: info.id,
-        registrationName: info.businessRegistrationName,
-        registrationNumber: info.businessRegistrationNumber,
-        displayName: info.businessDisplayName,
-        typeOfBusiness: info.typeOfBusiness,
-        description: info.description,
-        annualTurnOver: info.annualTurnover,
-        yearOfEstablishment: info.yearOfEstablishment,
-        email: info.contactInfo?.email || "",
-        region: info.region,
-        town: info.town,
-        primaryIndustry: info.primaryIndustry,
-        foundersName: info.founderInfo?.founderName || "",
-        foundersGender: info.founderInfo?.founderGender || "",
-        foundersAge: info.founderInfo?.founderAge || "",
-        businessAddress: info.contactInfo?.businessAddress || "",
-        phoneNumber: info.contactInfo?.phoneNumber || "",
-        whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
-        businessEmail: info.contactInfo?.email || "",
-        website: info.contactInfo?.website || "",
-        twitter: info.contactInfo?.twitter || "",
-        facebook: info.contactInfo?.facebook || "",
-        instagram: info.contactInfo?.instagram || "",
-        linkedln: info.contactInfo?.linkedIn || "",
-        monday: info.businessHours?.monday || "",
-        tuesday: info.businessHours?.tuesday || "",
-        wednesday: info.businessHours?.wednesday || "",
-        thursday: info.businessHours?.thursday || "",
-        friday: info.businessHours?.friday || "",
-        saturday: info.businessHours?.saturday || "",
-        sunday: info.businessHours?.sunday || "",
-        numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
-        status: info.status,
-        isBlocked: info.isBlocked,
-        createdAt: info.createdAt,
-      };
-    });
-    res.status(200).json({
+
+    if (!rows.length) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No rejected MSME records found.",
+        data: []
+      });
+    }
+
+    const formattedData = rows.map((info) => ({
+      id: info.id,
+      registrationName: info.businessRegistrationName,
+      registrationNumber: info.businessRegistrationNumber,
+      displayName: info.businessDisplayName,
+      typeOfBusiness: info.typeOfBusiness,
+      description: info.description,
+      annualTurnOver: info.annualTurnover,
+      yearOfEstablishment: info.yearOfEstablishment,
+      email: info.contactInfo?.email || "",
+      region: info.region,
+      town: info.town,
+      primaryIndustry: info.primaryIndustry,
+      foundersName: info.founderInfo?.founderName || "",
+      foundersGender: info.founderInfo?.founderGender || "",
+      foundersAge: info.founderInfo?.founderAge || "",
+      businessAddress: info.contactInfo?.businessAddress || "",
+      phoneNumber: info.contactInfo?.phoneNumber || "",
+      whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
+      businessEmail: info.contactInfo?.email || "",
+      website: info.contactInfo?.website || "",
+      twitter: info.contactInfo?.twitter || "",
+      facebook: info.contactInfo?.facebook || "",
+      instagram: info.contactInfo?.instagram || "",
+      linkedln: info.contactInfo?.linkedIn || "",
+      monday: info.businessHours?.monday || "",
+      tuesday: info.businessHours?.tuesday || "",
+      wednesday: info.businessHours?.wednesday || "",
+      thursday: info.businessHours?.thursday || "",
+      friday: info.businessHours?.friday || "",
+      saturday: info.businessHours?.saturday || "",
+      sunday: info.businessHours?.sunday || "",
+      numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
+      status: info.status,
+      isBlocked: info.isBlocked,
+      createdAt: info.createdAt,
+    }));
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
+      totalRecords: count,
+      currentPage: Number(page),
+      totalPages: Math.ceil(count / limit),
       data: formattedData,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.allIncomplete = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
         status: "Incomplete",
       },
       order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: Number(offset),
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
-    const formattedData = allMsmeInformations.map((info) => {
-      return {
-        id: info.id,
-        registrationName: info.businessRegistrationName,
-        registrationNumber: info.businessRegistrationNumber,
-        displayName: info.businessDisplayName,
-        typeOfBusiness: info.typeOfBusiness,
-        description: info.description,
-        annualTurnOver: info.annualTurnover,
-        yearOfEstablishment: info.yearOfEstablishment,
-        email: info.contactInfo?.email || "",
-        region: info.region,
-        town: info.town,
-        primaryIndustry: info.primaryIndustry,
-        foundersName: info.founderInfo?.founderName || "",
-        foundersGender: info.founderInfo?.founderGender || "",
-        foundersAge: info.founderInfo?.founderAge || "",
-        businessAddress: info.contactInfo?.businessAddress || "",
-        phoneNumber: info.contactInfo?.phoneNumber || "",
-        whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
-        businessEmail: info.contactInfo?.email || "",
-        website: info.contactInfo?.website || "",
-        twitter: info.contactInfo?.twitter || "",
-        facebook: info.contactInfo?.facebook || "",
-        instagram: info.contactInfo?.instagram || "",
-        linkedln: info.contactInfo?.linkedIn || "",
-        monday: info.businessHours?.monday || "",
-        tuesday: info.businessHours?.tuesday || "",
-        wednesday: info.businessHours?.wednesday || "",
-        thursday: info.businessHours?.thursday || "",
-        friday: info.businessHours?.friday || "",
-        saturday: info.businessHours?.saturday || "",
-        sunday: info.businessHours?.sunday || "",
-        numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
-        status: info.status,
-        isBlocked: info.isBlocked,
-        createdAt: info.createdAt,
-      };
-    });
-    res.status(200).json({
+
+    if (!rows.length) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No incomplete MSME records found.",
+        data: []
+      });
+    }
+
+    const formattedData = rows.map((info) => ({
+      id: info.id,
+      registrationName: info.businessRegistrationName,
+      registrationNumber: info.businessRegistrationNumber,
+      displayName: info.businessDisplayName,
+      typeOfBusiness: info.typeOfBusiness,
+      description: info.description,
+      annualTurnOver: info.annualTurnover,
+      yearOfEstablishment: info.yearOfEstablishment,
+      email: info.contactInfo?.email || "",
+      region: info.region,
+      town: info.town,
+      primaryIndustry: info.primaryIndustry,
+      foundersName: info.founderInfo?.founderName || "",
+      foundersGender: info.founderInfo?.founderGender || "",
+      foundersAge: info.founderInfo?.founderAge || "",
+      businessAddress: info.contactInfo?.businessAddress || "",
+      phoneNumber: info.contactInfo?.phoneNumber || "",
+      whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
+      businessEmail: info.contactInfo?.email || "",
+      website: info.contactInfo?.website || "",
+      twitter: info.contactInfo?.twitter || "",
+      facebook: info.contactInfo?.facebook || "",
+      instagram: info.contactInfo?.instagram || "",
+      linkedln: info.contactInfo?.linkedIn || "",
+      monday: info.businessHours?.monday || "",
+      tuesday: info.businessHours?.tuesday || "",
+      wednesday: info.businessHours?.wednesday || "",
+      thursday: info.businessHours?.thursday || "",
+      friday: info.businessHours?.friday || "",
+      saturday: info.businessHours?.saturday || "",
+      sunday: info.businessHours?.sunday || "",
+      numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
+      status: info.status,
+      isBlocked: info.isBlocked,
+      createdAt: info.createdAt,
+    }));
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
+      totalRecords: count,
+      currentPage: Number(page),
+      totalPages: Math.ceil(count / limit),
       data: formattedData,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.allBlocked = async (req, res) => {
   try {
-    const allMsmeInformations = await MsmeInformation.findAll({
+    const { page = 1, limit = 10 } = req.query;
+
+    const offset = (page - 1) * limit;
+
+    const { count, rows } = await MsmeInformation.findAndCountAll({
       where: {
         isBlocked: true,
       },
       order: [["createdAt", "DESC"]],
+      limit: Number(limit),
+      offset: Number(offset),
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
-    const formattedData = allMsmeInformations.map((info) => {
-      return {
-        id: info.id,
-        registrationName: info.businessRegistrationName,
-        registrationNumber: info.businessRegistrationNumber,
-        displayName: info.businessDisplayName,
-        typeOfBusiness: info.typeOfBusiness,
-        description: info.description,
-        annualTurnOver: info.annualTurnover,
-        yearOfEstablishment: info.yearOfEstablishment,
-        email: info.contactInfo?.email || "",
-        region: info.region,
-        town: info.town,
-        primaryIndustry: info.primaryIndustry,
-        foundersName: info.founderInfo?.founderName || "",
-        foundersGender: info.founderInfo?.founderGender || "",
-        foundersAge: info.founderInfo?.founderAge || "",
-        businessAddress: info.contactInfo?.businessAddress || "",
-        phoneNumber: info.contactInfo?.phoneNumber || "",
-        whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
-        businessEmail: info.contactInfo?.email || "",
-        website: info.contactInfo?.website || "",
-        twitter: info.contactInfo?.twitter || "",
-        facebook: info.contactInfo?.facebook || "",
-        instagram: info.contactInfo?.instagram || "",
-        linkedln: info.contactInfo?.linkedIn || "",
-        monday: info.businessHours?.monday || "",
-        tuesday: info.businessHours?.tuesday || "",
-        wednesday: info.businessHours?.wednesday || "",
-        thursday: info.businessHours?.thursday || "",
-        friday: info.businessHours?.friday || "",
-        saturday: info.businessHours?.saturday || "",
-        sunday: info.businessHours?.sunday || "",
-        numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
-        status: info.status,
-        isBlocked: info.isBlocked,
-        createdAt: info.createdAt,
-      };
-    });
-    res.status(200).json({
+
+    if (!rows.length) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "No blocked MSME records found.",
+        data: []
+      });
+    }
+
+    const formattedData = rows.map((info) => ({
+      id: info.id,
+      registrationName: info.businessRegistrationName,
+      registrationNumber: info.businessRegistrationNumber,
+      displayName: info.businessDisplayName,
+      typeOfBusiness: info.typeOfBusiness,
+      description: info.description,
+      annualTurnOver: info.annualTurnover,
+      yearOfEstablishment: info.yearOfEstablishment,
+      email: info.contactInfo?.email || "",
+      region: info.region,
+      town: info.town,
+      primaryIndustry: info.primaryIndustry,
+      foundersName: info.founderInfo?.founderName || "",
+      foundersGender: info.founderInfo?.founderGender || "",
+      foundersAge: info.founderInfo?.founderAge || "",
+      businessAddress: info.contactInfo?.businessAddress || "",
+      phoneNumber: info.contactInfo?.phoneNumber || "",
+      whatsAppNumber: info.contactInfo?.whatsAppNumber || "",
+      businessEmail: info.contactInfo?.email || "",
+      website: info.contactInfo?.website || "",
+      twitter: info.contactInfo?.twitter || "",
+      facebook: info.contactInfo?.facebook || "",
+      instagram: info.contactInfo?.instagram || "",
+      linkedln: info.contactInfo?.linkedIn || "",
+      monday: info.businessHours?.monday || "",
+      tuesday: info.businessHours?.tuesday || "",
+      wednesday: info.businessHours?.wednesday || "",
+      thursday: info.businessHours?.thursday || "",
+      friday: info.businessHours?.friday || "",
+      saturday: info.businessHours?.saturday || "",
+      sunday: info.businessHours?.sunday || "",
+      numberOfEmployees: info.additionalInfo?.numberOfEmployees || "",
+      status: info.status,
+      isBlocked: info.isBlocked,
+      createdAt: info.createdAt,
+    }));
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "All MSME information retrieved successfully!",
+      totalRecords: count,
+      currentPage: Number(page),
+      totalPages: Math.ceil(count / limit),
       data: formattedData,
     });
+
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.single = async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
     if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Business ID is required.",
       });
     }
+  try {
+    
 
     const msmeInformation = await MsmeInformation.findOne({
-      where: {
-        id,
-      },
+      where: { id },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
 
@@ -785,97 +784,80 @@ exports.single = async (req, res) => {
         message: "MSME information not found",
       });
     }
-    let regionId;
-    let migratedTown;
+
+    let regionId, migratedTown;
     if (msmeInformation.status !== "Incomplete") {
-      regionId = await Region.findOne({
-        where: {
-          regionName: msmeInformation.region,
-        },
+      const regionRecord = await Region.findOne({
+        where: { regionName: msmeInformation.region },
       });
+      regionId = regionRecord?.id || null;
     } else {
-      regionId = await Region.findOne({
-        order: [["id", "ASC"]],
-      });
+      const defaultRegion = await Region.findOne({ order: [["id", "ASC"]] });
+      regionId = defaultRegion?.id || null;
       migratedTown = await Town.findOne({
-        where: {
-          regionId: regionId.id,
-        },
+        where: { regionId: regionId },
       });
     }
 
-    console.log(msmeInformation?.id);
-    const newInformation = {
-      id: msmeInformation?.id,
-      businessRegistrationName: msmeInformation?.businessRegistrationName,
-      businessRegistrationNumber: msmeInformation?.businessRegistrationNumber,
-      businessDisplayName: msmeInformation?.businessDisplayName,
-      typeOfBusiness: msmeInformation?.typeOfBusiness,
-      description: msmeInformation?.description,
-      region: parseInt(regionId.id),
+    const formattedData = {
+      id: msmeInformation.id,
+      businessRegistrationName: msmeInformation.businessRegistrationName,
+      businessRegistrationNumber: msmeInformation.businessRegistrationNumber,
+      businessDisplayName: msmeInformation.businessDisplayName,
+      typeOfBusiness: msmeInformation.typeOfBusiness,
+      description: msmeInformation.description,
+      region: regionId,
       town:
         msmeInformation.status === "Incomplete"
           ? migratedTown
-          : msmeInformation?.town,
-      primaryIndustry: msmeInformation?.primaryIndustry,
-      secondaryIndustry: msmeInformation?.secondaryIndustry,
-      yearOfEstablishment: msmeInformation?.yearOfEstablishment,
-      annualTurnover: msmeInformation?.annualTurnover,
-      isVisibility: msmeInformation?.isVisibility,
-      isBlocked: msmeInformation?.isBlocked,
-      status: msmeInformation?.status,
-      userId: msmeInformation?.userId,
-      createdAt: msmeInformation?.createdAt,
-      founderInfo: msmeInformation?.founderInfo,
-      contactInfo: msmeInformation?.contactInfo,
-      additionalInfo: msmeInformation?.additionalInfo,
-      businessHours: msmeInformation?.businessHours,
+          : msmeInformation.town,
+      primaryIndustry: msmeInformation.primaryIndustry,
+      secondaryIndustry: msmeInformation.secondaryIndustry,
+      yearOfEstablishment: msmeInformation.yearOfEstablishment,
+      annualTurnover: msmeInformation.annualTurnover,
+      isVisibility: msmeInformation.isVisibility,
+      isBlocked: msmeInformation.isBlocked,
+      status: msmeInformation.status,
+      userId: msmeInformation.userId,
+      createdAt: msmeInformation.createdAt,
+      founderInfo: msmeInformation.founderInfo,
+      contactInfo: msmeInformation.contactInfo,
+      additionalInfo: msmeInformation.additionalInfo,
+      businessHours: msmeInformation.businessHours,
     };
-    console.log(msmeInformation);
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "MSME information retrieved successfully!",
-      data: newInformation,
+      message: "MSME information retrieved successfully",
+      data: formattedData,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.singleMsme = async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
 
     if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Business ID is required",
       });
     }
 
+  try {
+    
     const msmeInformation = await MsmeInformation.findOne({
-      where: {
-        id,
-      },
+      where: { id },
       include: [
-        {
-          model: MsmeFounderInfo,
-          as: "founderInfo",
-        },
-        {
-          model: MsmeContactInfo,
-          as: "contactInfo",
-        },
-        {
-          model: MsmeAdditionalInfo,
-          as: "additionalInfo",
-        },
-        {
-          model: BusinessHour,
-          as: "businessHours",
-        },
+        { model: MsmeFounderInfo, as: "founderInfo" },
+        { model: MsmeContactInfo, as: "contactInfo" },
+        { model: MsmeAdditionalInfo, as: "additionalInfo" },
+        { model: BusinessHour, as: "businessHours" },
       ],
     });
 
@@ -886,142 +868,106 @@ exports.singleMsme = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "MSME information retrieved successfully!",
+      message: "MSME information retrieved successfully",
       data: msmeInformation,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.totalCount = async (req, res) => {
   try {
     const totalCount = await MsmeInformation.count();
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Total count successfully retrieved!",
-        count: totalCount,
-      });
-    }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Total count successfully retrieved!",
-      count: totalCount,
+      message: "Total MSME count retrieved successfully",
+      count: totalCount || 0,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.pendingCount = async (req, res) => {
   try {
     const totalCount = await MsmeInformation.count({
-      where: {
-        status: "Pending",
-      },
+      where: { status: "Pending" },
     });
-    console.log(totalCount);
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Pending count successfully retrieved!",
-        count: totalCount,
-      });
-    }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Pending count successfully retrieved!",
-      count: totalCount,
+      message: "Pending MSME count retrieved successfully",
+      count: totalCount || 0, 
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.rejectedCount = async (req, res) => {
   try {
     const totalCount = await MsmeInformation.count({
-      where: {
-        status: "Rejected",
-      },
+      where: { status: "Rejected" },
     });
-    console.log(totalCount);
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Pending count successfully retrieved!",
-        count: totalCount,
-      });
-    }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Rejected count successfully retrieved!",
-      count: totalCount,
+      message: "Rejected MSME count retrieved successfully",
+      count: totalCount || 0,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.incompleteCount = async (req, res) => {
   try {
     const totalCount = await MsmeInformation.count({
-      where: {
-        status: "Incomplete",
-      },
+      where: { status: "Incomplete" },
     });
-    console.log(totalCount);
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Incomplete count successfully retrieved!",
-        count: totalCount,
-      });
-    }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Incomplete count successfully retrieved!",
-      count: totalCount,
+      message: "Incomplete MSME count retrieved successfully",
+      count: totalCount || 0,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.approvedCount = async (req, res) => {
   try {
     const totalCount = await MsmeInformation.count({
-      where: {
-        status: "Approved",
-      },
+      where: { status: "Approved" },
     });
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Pending count successfully retrieved!",
-        count: totalCount,
-      });
-    }
-    res.status(200).json({
+
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Approved count successfully retrieved!",
-      count: totalCount,
+      message: "Approved MSME count retrieved successfully",
+      count: totalCount || 0,
     });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
@@ -1033,10 +979,7 @@ exports.topCategory = async (req, res) => {
     const topIndustries = await MsmeInformation.findAll({
       attributes: [
         "primaryIndustry",
-        [
-          sequelize.fn("COUNT", sequelize.col("primaryIndustry")),
-          "industryCount",
-        ],
+        [sequelize.fn("COUNT", sequelize.col("primaryIndustry")), "industryCount"],
       ],
       group: ["primaryIndustry"],
       order: [[sequelize.literal("industryCount"), "DESC"]],
@@ -1048,6 +991,8 @@ exports.topCategory = async (req, res) => {
       limit: 5,
     });
 
+    let finalIndustries = topIndustries;
+
     if (topIndustries.length < 5) {
       const allIndustries = await MsmeInformation.findAll({
         attributes: ["primaryIndustry"],
@@ -1055,40 +1000,35 @@ exports.topCategory = async (req, res) => {
         order: [["primaryIndustry", "ASC"]],
       });
 
-      const topIndustryNames = topIndustries.map(
-        (industry) => industry.primaryIndustry
-      );
+      const topIndustryNames = topIndustries.map(i => i.primaryIndustry);
       const missingIndustries = allIndustries
-        .map((industry) => industry.primaryIndustry)
-        .filter((name) => !topIndustryNames.includes(name))
+        .map(i => i.primaryIndustry)
+        .filter(name => !topIndustryNames.includes(name))
         .slice(0, 5 - topIndustries.length);
 
-      const finalIndustries = [
+      finalIndustries = [
         ...topIndustries,
-        ...missingIndustries.map((name) => ({
-          primaryIndustry: name,
-          industryCount: 0,
-        })),
+        ...missingIndustries.map(name => ({ primaryIndustry: name, industryCount: 0 }))
       ].slice(0, 5);
-
-      return res.status(200).json({
-        data: finalIndustries,
-      });
     }
 
     return res.status(200).json({
-      data: topIndustries,
+      status: "SUCCESS",
+      message: "Top industries retrieved successfully",
+      data: finalIndustries,
     });
   } catch (error) {
     console.error("Error fetching top industries:", error);
-    return res
-      .status(500)
-      .json({ error: "An error occurred while fetching top industries" });
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
   }
 };
-exports.montlyRegistration = async (req, res) => {
+
+exports.monthlyRegistration = async (req, res) => {
   try {
-    const now = new Date(Date.now());
+    const now = new Date();
     const currentYear = now.getFullYear();
     const monthsData = [];
 
@@ -1096,14 +1036,8 @@ exports.montlyRegistration = async (req, res) => {
       const currentMonthCount = await MsmeInformation.count({
         where: {
           [Op.and]: [
-            Sequelize.where(
-              Sequelize.fn("YEAR", Sequelize.col("createdAt")),
-              currentYear
-            ),
-            Sequelize.where(
-              Sequelize.fn("MONTH", Sequelize.col("createdAt")),
-              month
-            ),
+            Sequelize.where(Sequelize.fn("YEAR", Sequelize.col("createdAt")), currentYear),
+            Sequelize.where(Sequelize.fn("MONTH", Sequelize.col("createdAt")), month),
           ],
         },
       });
@@ -1111,14 +1045,8 @@ exports.montlyRegistration = async (req, res) => {
       const previousMonthCount = await MsmeInformation.count({
         where: {
           [Op.and]: [
-            Sequelize.where(
-              Sequelize.fn("YEAR", Sequelize.col("createdAt")),
-              currentYear - 1
-            ),
-            Sequelize.where(
-              Sequelize.fn("MONTH", Sequelize.col("createdAt")),
-              month
-            ),
+            Sequelize.where(Sequelize.fn("YEAR", Sequelize.col("createdAt")), currentYear - 1),
+            Sequelize.where(Sequelize.fn("MONTH", Sequelize.col("createdAt")), month),
           ],
         },
       });
@@ -1130,25 +1058,22 @@ exports.montlyRegistration = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Monthly registration data retrieved successfully!",
+      message: "Monthly registration data retrieved successfully",
       data: monthsData,
     });
   } catch (error) {
     console.error("Error fetching monthly registration data:", error);
     return res.status(500).json({
-      error: "An error occurred while fetching monthly registration data",
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
     });
   }
 };
 
 exports.update = async (req, res) => {
-  try {
-    const { businessId } = req.params;
-    console.log(req.body);
-    let businessLogo = null;
-
+  const { businessId } = req.params;
     const {
       businessRegistrationName,
       businessRegistrationNumber,
@@ -1181,39 +1106,45 @@ exports.update = async (req, res) => {
       saturday,
       sunday,
       numberOfEmployees,
+      removeImage,
       removeImage1,
       removeImage2,
       removeImage3,
-      removeImage,
     } = req.body;
-    console.log(req.body);
-    const business = await MsmeInformation.findOne({
-      where: { id: businessId },
-    });
-    if (!business) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "Business not found.",
-      });
-    }
+  const transaction = await sequelize.transaction(); // start transaction
+  try {
+    
+
+    const business = await MsmeInformation.findOne({ where: { id: businessId }, transaction });
+    if (!business) { return res.status(404).json({ status: "FAILURE", message: "Business not found.", }); }
 
     if (businessRegistrationName !== business.businessRegistrationName) {
-      const alreadyExist = await MsmeInformation.findOne({
-        where: { businessRegistrationName },
-      });
-      if (alreadyExist) {
-        return res.status(404).json({
-          status: "FAILURE",
-          message: "Business name already in use.",
-        });
-      }
+      const alreadyExist = await MsmeInformation.findOne({ where: { businessRegistrationName }, transaction });
+      if (alreadyExist) { return res.status(404).json({ status: "FAILURE", message: "Business name already in use.", }); }
     }
 
-    const selectedRegion = await Region.findOne({
-      where: {
-        id: region,
-      },
-    });
+    const selectedRegion = await Region.findOne({ where: { id: region }, transaction });
+
+    const existingAdditional = await MsmeAdditionalInfo.findOne({ where: { businessId }, transaction });
+
+    const removeFile = (fileName) => {
+      if (fileName) {
+        const filePath = path.join("public", "msmes", fileName);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+    };
+
+    const handleImageUpdate = async (imageField, removeFlag) => {
+      if (removeFlag) {
+        removeFile(existingAdditional?.[imageField]);
+        await MsmeAdditionalInfo.update({ [imageField]: null }, { where: { businessId }, transaction });
+      }
+      if (req.files?.[imageField]?.[0]?.filename) {
+        const newFile = req.files[imageField][0].filename;
+        removeFile(existingAdditional?.[imageField]);
+        await MsmeAdditionalInfo.update({ [imageField]: newFile }, { where: { businessId }, transaction });
+      }
+    };
 
     await MsmeInformation.update(
       {
@@ -1229,16 +1160,12 @@ exports.update = async (req, res) => {
         yearOfEstablishment,
         annualTurnover,
       },
-      { where: { id: businessId } }
+      { where: { id: businessId }, transaction }
     );
 
     await MsmeFounderInfo.update(
-      {
-        founderName,
-        founderAge,
-        founderGender,
-      },
-      { where: { businessId } }
+      { founderName, founderAge, founderGender },
+      { where: { businessId }, transaction }
     );
 
     await MsmeContactInfo.update(
@@ -1253,179 +1180,49 @@ exports.update = async (req, res) => {
         instagram,
         linkedIn: linkedln,
       },
-      { where: { businessId } }
+      { where: { businessId }, transaction }
     );
-
-    const existing = await MsmeAdditionalInfo.findOne({
-      where: { businessId },
-    });
 
     if (removeImage) {
-      const oldLogoPath = path.join("public", "msmes", existing.businessLogo);
-      if (fs.existsSync(oldLogoPath)) {
-        fs.unlinkSync(oldLogoPath);
-      }
-      const businessIcon = await PrimaryIndustry.findOne({
-        where: {
-          industryName: primaryIndustry,
-        },
-      });
+      removeFile(existingAdditional?.businessLogo);
 
-      if (businessIcon && businessIcon.industryIcon) {
-        const sourcePath = path.join(
-          "public",
-          "primary-industries",
-          businessIcon.industryIcon
-        );
-        const destPath = path.join(
-          "public",
-          "msmes",
-          businessIcon.industryIcon
-        );
-
+      const businessIcon = await PrimaryIndustry.findOne({ where: { industryName: primaryIndustry }, transaction });
+      if (businessIcon?.industryIcon) {
+        const sourcePath = path.join("public", "primary-industries", businessIcon.industryIcon);
+        const destPath = path.join("public", "msmes", businessIcon.industryIcon);
         fs.copyFileSync(sourcePath, destPath);
-        businessLogo = businessIcon.industryIcon;
-
-        await MsmeAdditionalInfo.update(
-          { businessLogo },
-          { where: { businessId } }
-        );
+        await MsmeAdditionalInfo.update({ businessLogo: businessIcon.industryIcon }, { where: { businessId }, transaction });
       }
     }
 
-    if (req.files?.businessLogo && req.files.businessLogo[0].filename) {
-      const businessLogo = req.files.businessLogo[0].filename;
-
-      if (existing?.businessLogo) {
-        const oldLogoPath = path.join("public", "msmes", existing.businessLogo);
-        if (fs.existsSync(oldLogoPath)) {
-          fs.unlinkSync(oldLogoPath);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { businessLogo },
-        { where: { businessId } }
-      );
+    if (req.files?.businessLogo?.[0]?.filename) {
+      const newLogo = req.files.businessLogo[0].filename;
+      removeFile(existingAdditional?.businessLogo);
+      await MsmeAdditionalInfo.update({ businessLogo: newLogo }, { where: { businessId }, transaction });
     }
 
-    await MsmeAdditionalInfo.update(
-      { numberOfEmployees },
-      { where: { businessId } }
-    );
+    await MsmeAdditionalInfo.update({ numberOfEmployees }, { where: { businessId }, transaction });
 
-    if (removeImage1) {
-      const existing = await MsmeAdditionalInfo.findOne({
-        where: { businessId },
-      });
-      if (existing?.image1) {
-        const oldImage1Path = path.join("public", "msmes", existing.image1);
-        if (fs.existsSync(oldImage1Path)) {
-          fs.unlinkSync(oldImage1Path);
-        }
-        await MsmeAdditionalInfo.update(
-          { image1: null },
-          { where: { businessId } }
-        );
-      }
-    }
-    if (req.files?.image1) {
-      const newImage1 = req.files.image1[0].filename;
-
-      if (existing?.image1) {
-        const oldImage1Path = path.join("public", "msmes", existing.image1);
-        if (fs.existsSync(oldImage1Path)) {
-          fs.unlinkSync(oldImage1Path);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image1: newImage1 },
-        { where: { businessId } }
-      );
-    }
-
-    if (removeImage2) {
-      const existing = await MsmeAdditionalInfo.findOne({
-        where: { businessId },
-      });
-      if (existing?.image2) {
-        const oldImage2Path = path.join("public", "msmes", existing.image2);
-        if (fs.existsSync(oldImage2Path)) {
-          fs.unlinkSync(oldImage2Path);
-        }
-        await MsmeAdditionalInfo.update(
-          { image2: null },
-          { where: { businessId } }
-        );
-      }
-    }
-    if (req.files?.image2) {
-      const newImage2 = req.files.image2[0].filename;
-
-      if (existing?.image2) {
-        const oldImage2Path = path.join("public", "msmes", existing.image2);
-        if (fs.existsSync(oldImage2Path)) {
-          fs.unlinkSync(oldImage2Path);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image2: newImage2 },
-        { where: { businessId } }
-      );
-    }
-
-    if (removeImage3) {
-      const existing = await MsmeAdditionalInfo.findOne({
-        where: { businessId },
-      });
-      if (existing?.image3) {
-        const oldImage3Path = path.join("public", "msmes", existing.image3);
-        if (fs.existsSync(oldImage3Path)) {
-          fs.unlinkSync(oldImage3Path);
-        }
-        await MsmeAdditionalInfo.update(
-          { image3: null },
-          { where: { businessId } }
-        );
-      }
-    }
-    if (req.files?.image3) {
-      const newImage3 = req.files.image3[0].filename;
-
-      if (existing?.image3) {
-        const oldImage3Path = path.join("public", "msmes", existing.image3);
-        if (fs.existsSync(oldImage3Path)) {
-          fs.unlinkSync(oldImage3Path);
-        }
-      }
-
-      await MsmeAdditionalInfo.update(
-        { image3: newImage3 },
-        { where: { businessId } }
-      );
-    }
+    // Handle other images
+    await handleImageUpdate("image1", removeImage1);
+    await handleImageUpdate("image2", removeImage2);
+    await handleImageUpdate("image3", removeImage3);
 
     await BusinessHour.update(
-      {
-        monday,
-        tuesday,
-        wednesday,
-        thursday,
-        friday,
-        saturday,
-        sunday,
-      },
-      { where: { businessId } }
+      { monday, tuesday, wednesday, thursday, friday, saturday, sunday },
+      { where: { businessId }, transaction }
     );
 
-    res.status(200).json({
+    await transaction.commit();
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Business successfully updated!",
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error updating business:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
@@ -1433,399 +1230,220 @@ exports.update = async (req, res) => {
 };
 
 exports.status = async (req, res) => {
-  try {
-    let id = req.params.id;
+  let id = parseInt(req.params.id);
     const { status } = req.body;
     const userId = req.user.id;
 
-    id = parseInt(id);
-    console.log(id, status, userId);
-    if (!id || !status) {
+    if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Business ID is required.",
       });
     }
-
-    const existingUser = await Admin.findOne({
-      where: {
-        id: userId,
-      },
-    });
-
-    if (!existingUser) {
-      return res.status(404).json({
+    if (!status) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "The user you are trying to access does not exist.",
+        message: "Status is required.",
       });
     }
+  const transaction = await sequelize.transaction();
+  try {
+    
 
-    const existingBusiness = await MsmeInformation.findOne({
-      where: {
-        id,
-      },
-    });
+    const existingUser = await Admin.findOne({ where: { id: userId }, transaction });
+    if (!existingUser) { return res.status(404).json({ status: "FAILURE", message: "The user you are trying to access does not exist.", }); }
 
-    if (!existingBusiness) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "The business does not exist.",
-      });
-    }
-    const user = await User.findOne({
-      where: {
-        id: existingBusiness.userId,
-      },
-    });
-    if (!user) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "The business does not exist.",
-      });
-    }
-    await MsmeInformation.update(
-      { status },
-      {
-        where: {
-          id,
-        },
-      }
-    );
-    if (status === "Approved") {
-      await Notification.create({
-        userId: existingBusiness.userId,
+    const existingBusiness = await MsmeInformation.findOne({ where: { id }, transaction });
+    if (!existingBusiness) { return res.status(404).json({ status: "FAILURE", message: "The business does not exist.", }); }
+
+    const user = await User.findOne({ where: { id: existingBusiness.userId }, transaction });
+    if (!user) { return res.status(404).json({ status: "FAILURE", message: "The business does not exist.", }); }
+
+    await MsmeInformation.update({ status }, { where: { id }, transaction });
+
+    const messages = {
+      Approved: {
         title: "Approved - Welcome to in4msme",
-        notification: `Dear Entrepreneur,\nWe are pleased to inform you that your account has been approved! You can access your account and your business’ profile is now publicly visible to potential customers, investors and business support organisations.  You can choose to hide your profile in your account settings, which means only NIPDB can see your profile.\nIf you have any questions, please do not hesitate to contact us at msme.eo@nipdb.com\nKind Regards,\nNIPDB`,
-        type: "Alert",
-        priority: "High",
-        createdAt: Date.now(),
-        senderId: userId,
-        viewed: false,
-      });
-      await sendEmail(
-        {
-          email: user.email,
-          subject: "Account Approved - Welcome to in4msme",
-          notification: "approved",
-        },
-        res
-      );
-
-      const allUserDeviceTokens = await FcmToken.findAll({
-        where: {
-          userId: existingBusiness.userId,
-        },
-        attributes: ["deviceToken"],
-      });
-      if (allUserDeviceTokens.length > 0) {
-        const message = {
-          notification: {
-            title: "Approved - Welcome to in4msme",
-            body: `Dear Entrepreneur,\nWe are pleased to inform you that your account has been approved! You can access your account and your business’ profile is now publicly visible to potential customers, investors and business support organisations.  You can choose to hide your profile in your account settings, which means only NIPDB can see your profile.\nIf you have any questions, please do not hesitate to contact us at msme.eo@nipdb.com\nKind Regards,\nNIPDB`,
-          },
-          data:{
-            title: "Approved - Welcome to in4msme",
-            body: `Dear Entrepreneur,\nWe are pleased to inform you that your account has been approved! You can access your account and your business’ profile is now publicly visible to potential customers, investors and business support organisations.  You can choose to hide your profile in your account settings, which means only NIPDB can see your profile.\nIf you have any questions, please do not hesitate to contact us at msme.eo@nipdb.com\nKind Regards,\nNIPDB`,
-            type: 'status_update',
-            click_action: 'NOTIFICATION_CLICK',
-          },
-          android: {
-            priority: "high",
-            notification: {
-              sound: "default",
-              channelId: "default-channel-id",
-              priority: "high",
-              visibility: "public",
-            },
-          },
-          apns: {
-            payload: {
-              aps: {
-                sound: "default",
-                category: 'status_update',
-                priority: 10
-              },
-              notifee: {
-                title: "Approved - Welcome to in4msme",
-             body: `Dear Entrepreneur,\nWe are pleased to inform you that your account has been approved! You can access your account and your business’ profile is now publicly visible to potential customers, investors and business support organisations.  You can choose to hide your profile in your account settings, which means only NIPDB can see your profile.\nIf you have any questions, please do not hesitate to contact us at msme.eo@nipdb.com\nKind Regards,\nNIPDB`,
-              }
-            },
-            headers: {
-              "apns-push-type": "background",
-              "apns-priority": "10",
-            },
-          },
-        };
-
-        const firebasePromises = allUserDeviceTokens.map(
-          async ({ deviceToken }) => {
-            try {
-              return await adminFirebase
-                .messaging()
-                .send({ ...message, token: deviceToken });
-            } catch (firebaseError) {
-              console.error("Firebase error:", firebaseError);
-
-              if (
-                firebaseError.code ===
-                "messaging/registration-token-not-registered"
-              ) {
-                await FcmToken.destroy({
-                  where: { deviceToken },
-                });
-                console.log(
-                  `Removed unregistered device token: ${deviceToken}`
-                );
-              } else {
-                throw firebaseError; // Rethrow error if it's not token-related
-              }
-            }
-          }
-        );
-
-        try {
-          await Promise.all(firebasePromises);
-          res.status(200).json({
-            status: "SUCCESS",
-            message: "Notification sent to user's devices successfully.",
-          });
-        } catch (error) {
-          res.status(500).json({
-            status: "FAILURE",
-            message: "Failed to send some notifications: " + error.message,
-          });
-        }
-      }
-    } else {
-      await Notification.create({
-        userId: existingBusiness.userId,
+        body: `Dear Entrepreneur,
+Your account has been approved! Your business profile is now visible to potential customers, investors, and business support organisations.
+You can hide your profile in settings if needed.
+Questions? Contact msme.eo@nipdb.com
+Kind Regards, NIPDB`,
+        type: "approved",
+      },
+      Rejected: {
         title: "Application to in4msme declined",
-        notification: `Dear Entrepreneur,\nWe regret to inform you that your application to the in4msme app was unsuccessful. Possible reasons for this decision may include:\n 1.	False or Incorrect information\n2.	Inconsistencies in the provided information\n3.	Non-compliance with the criteria\n4.	Violations of terms or policies\nPlease review the feedback provided and feel free to reapply.\nIf you have any questions regarding your application please contact msme.eo@nipdb.com or call 083 333 8619.\nKind regards,\nNIPDB`,
+        body: `Dear Entrepreneur,
+Your application was unsuccessful. Possible reasons include false information, inconsistencies, non-compliance, or policy violations.
+Please review feedback and feel free to reapply.
+Questions? Contact msme.eo@nipdb.com or call 083 333 8619.
+Kind Regards, NIPDB`,
+        type: "rejected",
+      },
+    };
+
+    const statusMessage = status === "Approved" ? messages.Approved : messages.Rejected;
+
+    await Notification.create(
+      {
+        userId: existingBusiness.userId,
+        title: statusMessage.title,
+        notification: statusMessage.body,
         type: "Alert",
         priority: "High",
         createdAt: Date.now(),
         senderId: userId,
         viewed: false,
-      });
-      await sendEmail(
-        {
-          email: user.email,
-          subject: "Application to in4msme declined",
-          notification: "rejected",
-        },
-        res
-      );
+      },
+      { transaction }
+    );
 
-      const allUserDeviceTokens = await FcmToken.findAll({
-        where: {
-          userId: existingBusiness.userId,
-        },
-        attributes: ["deviceToken"],
-      });
-      if (allUserDeviceTokens.length > 0) {
-        const message = {
-          notification: {
-            title: "Application to in4msme declined",
-            body: `Dear Entrepreneur,\nWe regret to inform you that your application to the in4msme app was unsuccessful. Possible reasons for this decision may include:\n 1.	False or Incorrect information\n2.	Inconsistencies in the provided information\n3.	Non-compliance with the criteria\n4.	Violations of terms or policies\nPlease review the feedback provided and feel free to reapply.\nIf you have any questions regarding your application please contact msme.eo@nipdb.com or call 083 333 8619.\nKind regards,\nNIPDB`,
+    sendEmail({ email: user.email, subject: statusMessage.title, notification: statusMessage.type });
+
+    FcmToken.findAll({ where: { userId: existingBusiness.userId }, attributes: ["deviceToken"] })
+      .then((deviceTokens) => {
+        if (!deviceTokens.length) return;
+        const messagePayload = {
+          notification: { title: statusMessage.title, body: statusMessage.body },
+          data: {
+            title: statusMessage.title,
+            body: statusMessage.body,
+            type: "status_update",
+            click_action: "NOTIFICATION_CLICK",
           },
-          android: {
-            priority: "high",
-            notification: {
-              sound: "default",
-            },
-          },
+          android: { priority: "high", notification: { sound: "default", channelId: "default-channel-id" } },
           apns: {
-            headers: {
-              "apns-priority": "10",
-            },
-            payload: {
-              aps: {
-                sound: "default",
-              },
-            },
+            payload: { aps: { sound: "default", category: "status_update", priority: 10 }, notifee: { title: statusMessage.title, body: statusMessage.body } },
+            headers: { "apns-push-type": "background", "apns-priority": "10" },
           },
         };
-
-        const firebasePromises = allUserDeviceTokens.map(
-          async ({ deviceToken }) => {
-            try {
-              return await adminFirebase
-                .messaging()
-                .send({ ...message, token: deviceToken });
-            } catch (firebaseError) {
-              console.error("Firebase error:", firebaseError);
-
-              if (
-                firebaseError.code ===
-                "messaging/registration-token-not-registered"
-              ) {
-                await FcmToken.destroy({
-                  where: { deviceToken },
-                });
-                console.log(
-                  `Removed unregistered device token: ${deviceToken}`
-                );
-              } else {
-                throw firebaseError; // Rethrow error if it's not token-related
-              }
+        deviceTokens.forEach(async ({ deviceToken }) => {
+          try {
+            await adminFirebase.messaging().send({ ...messagePayload, token: deviceToken });
+          } catch (firebaseError) {
+            console.error("Firebase error:", firebaseError);
+            if (firebaseError.code === "messaging/registration-token-not-registered") {
+              await FcmToken.destroy({ where: { deviceToken } });
+              console.log(`Removed unregistered device token: ${deviceToken}`);
             }
           }
-        );
+        });
+      })
+      .catch((err) => console.error("Failed to fetch device tokens:", err));
 
-        try {
-          await Promise.all(firebasePromises);
-          res.status(200).json({
-            status: "SUCCESS",
-            message: "Notification sent to user's devices successfully.",
-          });
-        } catch (error) {
-          res.status(500).json({
-            status: "FAILURE",
-            message: "Failed to send some notifications: " + error.message,
-          });
-        }
-      }
-    }
-    res.status(200).json({
+    await transaction.commit();
+    return res.status(200).json({
       status: "SUCCESS",
-      message: "Status successfully changed!",
+      message: "Status successfully changed! Notifications will be sent asynchronously.",
     });
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    console.error("Error updating status:", error);
+    return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
     });
   }
 };
+
 exports.block = async (req, res) => {
-  try {
-    const { id } = req.params;
+   const { id } = req.params;
     const { block } = req.body;
     const admin = req.user.id;
-    console.log("Received Request:", { id, block, admin });
 
     if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Business ID is required",
       });
     }
-
-    const existingBusiness = await MsmeInformation.findOne({ where: { id } });
-
-    if (!existingBusiness) {
-      return res.status(404).json({
+    if (!block) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "The business does not exist.",
+        message: "Block is required",
       });
     }
+  const transaction = await sequelize.transaction();
+  try {
+   
+    const existingBusiness = await MsmeInformation.findOne({ where: { id }, transaction });
+    if (!existingBusiness) { return res.status(404).json({ status: "FAILURE", message: "The business does not exist.", }); }
 
-    await MsmeInformation.update({ isBlocked: block }, { where: { id } });
+    await MsmeInformation.update({ isBlocked: block }, { where: { id }, transaction });
 
     const business = await MsmeInformation.findOne({
       where: { id },
       attributes: ["userId", "businessRegistrationName"],
+      transaction,
     });
 
-    if (!business || !business.userId) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "No such user found in our database",
-      });
-    }
+    if (!business || !business.userId) throw new Error("No such user found in our database");
 
     const { userId, businessRegistrationName } = business;
-    console.log("User ID:", userId);
 
-    const user = await User.findOne({
-      where: { id: userId },
-      attributes: ["email"],
-    });
-
-    if (!user || !user.email) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "User email not found",
-      });
-    }
+    const user = await User.findOne({ where: { id: userId }, attributes: ["email"], transaction });
+    if (!user || !user.email) throw new Error("User email not found");
 
     const email = user.email;
-    console.log("User Email:", email);
-
     const notificationMessage = block
       ? "Your business has been blocked due to a violation of our terms."
       : "Your business has been unblocked and is now visible again.";
 
-    await Notification.create({
-      userId,
-      title: block ? "Business Blocked" : "Business Unblocked",
-      notification: notificationMessage,
-      type: "Alert",
-      priority: "High",
-      createdAt: Date.now(),
-      senderId: admin,
-      viewed: false,
-    });
-
-    const allUserDeviceTokens = await FcmToken.findAll({
-      where: { userId },
-      attributes: ["deviceToken"],
-    });
-    console.log("user device token: ",allUserDeviceTokens)
-
-    if (allUserDeviceTokens.length > 0) {
-      const message = {
-        notification: {
-          title: block ? "Business Blocked" : "Business Unblocked",
-          body: notificationMessage,
-        },
-        android: {
-          priority: "high",
-          notification: { sound: "default" },
-        },
-        apns: {
-          headers: { "apns-priority": "10" },
-          payload: { aps: { sound: "default" } },
-        },
-      };
-
-      const firebasePromises = allUserDeviceTokens.map(async ({ deviceToken }) => {
-        try {
-          return await adminFirebase.messaging().send({ ...message, token: deviceToken });
-        } catch (firebaseError) {
-          console.error("Firebase error:", firebaseError);
-          if (firebaseError.code === "messaging/registration-token-not-registered") {
-            await FcmToken.destroy({ where: { deviceToken } });
-            console.log(`Removed unregistered device token: ${deviceToken}`);
-          } else {
-            throw firebaseError;
-          }
-        }
-      });
-
-      try {
-        console.log("Sending push notification...");
-        await Promise.all(firebasePromises);
-      } catch (error) {
-        console.error("Failed to send notifications:", error.message);
-      }
-    }
-
-    console.log("Sending email to user...");
-    await sendEmail(
+    await Notification.create(
       {
-        email,
-        subject: `${businessRegistrationName} Has Been ${block ? "Blocked" : "Unblocked"}`,
-        notification: block ? "blocked" : "unblocked",
+        userId,
+        title: block ? "Business Blocked" : "Business Unblocked",
+        notification: notificationMessage,
+        type: "Alert",
+        priority: "High",
+        createdAt: Date.now(),
+        senderId: admin,
+        viewed: false,
       },
-      res
+      { transaction }
     );
+
+    await transaction.commit();
+
+    sendEmail({
+      email,
+      subject: `${businessRegistrationName} Has Been ${block ? "Blocked" : "Unblocked"}`,
+      notification: block ? "blocked" : "unblocked",
+    });
+
+    FcmToken.findAll({ where: { userId }, attributes: ["deviceToken"] })
+      .then((deviceTokens) => {
+        if (!deviceTokens.length) return;
+
+        const messagePayload = {
+          notification: {
+            title: block ? "Business Blocked" : "Business Unblocked",
+            body: notificationMessage,
+          },
+          android: { priority: "high", notification: { sound: "default" } },
+          apns: { headers: { "apns-priority": "10" }, payload: { aps: { sound: "default" } } },
+        };
+
+        deviceTokens.forEach(async ({ deviceToken }) => {
+          try {
+            await adminFirebase.messaging().send({ ...messagePayload, token: deviceToken });
+          } catch (firebaseError) {
+            console.error("Firebase error:", firebaseError);
+            if (firebaseError.code === "messaging/registration-token-not-registered") {
+              await FcmToken.destroy({ where: { deviceToken } });
+              console.log(`Removed unregistered device token: ${deviceToken}`);
+            }
+          }
+        });
+      })
+      .catch((err) => console.error("Failed to fetch device tokens:", err));
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: `Business successfully ${block ? "blocked" : "unblocked"}!`,
+      message: `Business successfully ${block ? "blocked" : "unblocked"}! Notifications will be sent asynchronously.`,
     });
   } catch (error) {
+    await transaction.rollback();
     console.error("Internal server error:", error.message);
     return res.status(500).json({
       status: "FAILURE",

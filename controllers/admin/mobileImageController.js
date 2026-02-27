@@ -1,48 +1,63 @@
 const MobileImage = require("../../models/mobileImage");
 const path = require("path");
 const fs = require('fs');
+const sequelize = require("../../config/dbConfig");
 
 exports.create = async (req, res) => {
-  try {
-    const { description } = req.body;
-    const mobileImage = req.file.filename;
+  const { description } = req.body;
+    const mobileImage = req.file?.filename;
 
-    if (!mobileImage || !description) {
+    if (!description) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty input fields",
+        message: "Description is required",
       });
     }
+    if (!mobileImage) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Image is required",
+      });
+    }
+  const transaction = await sequelize.transaction();
 
-    const imageCount = await MobileImage.count();
+  try {
+    
 
-    if (imageCount > 10) {
+    const imageCount = await MobileImage.count({ transaction });
+    if (imageCount >= 10) {
+      await transaction.rollback();
       return res.status(403).json({
         status: "FAILURE",
         message: "Image limit number set to 10.",
       });
     }
 
-    const newImage = await MobileImage.create({
-      mobileImage,
-      description
+    const newImage = await MobileImage.create(
+      { mobileImage, description: description },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "App image successfully created!",
+      data: newImage,
     });
 
-    if (newImage) {
-      return res.status(201).json({
-        status: "SUCCESS",
-        message: "App image successfully created!",
-      });
-    } else {
-      return res.status(500).json({
-        status: "FAILURE",
-        message: "Internal server error.",
-      });
-    }
   } catch (error) {
+    await transaction.rollback();
+    if (req.file) {
+      const failedPath = path.join(process.cwd(), "public/mobile-images", req.file.filename);
+      if (fs.existsSync(failedPath)) fs.unlinkSync(failedPath);
+    }
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
@@ -50,156 +65,161 @@ exports.create = async (req, res) => {
 exports.all = async (req, res) => {
   try {
     const mobileImages = await MobileImage.findAll();
-    if (mobileImages) {
-      res.status(200).json({
-        status: "SUCCESS",
-        message: "Images successfully retrieved!",
-        data: mobileImages,
-      });
-    } else {
-      res.status(500).json({
-        status: "FAILURE",
-        message: "Internal server error.",
-      });
-    }
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Images successfully retrieved!",
+      data: mobileImages,
+    });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
 
 exports.single = async (req, res) => {
-  try {
-    const id = req.params.id;
-
+  const { id } = req.params;
     if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty parameter",
+        message: "Image ID is required.",
       });
     }
-
-    const mobileImage = await MobileImage.findOne({
-      where: { id },
-    });
-
-    if (mobileImage) {
-      res.status(200).json({
-        status: "SUCCESS",
-        message: "Image successfully retrieved!",
-        data: mobileImage,
-      });
-    } else {
-      res.status(404).json({
+  try {
+    
+    const mobileImage = await MobileImage.findByPk(id);
+    if (!mobileImage) {
+      return res.status(200).json({
         status: "FAILURE",
         message: "Image not found.",
+        data: []
       });
     }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Image successfully retrieved!",
+      data: mobileImage,
+    });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
 
 exports.update = async (req, res) => {
-  try {
-    const { id } = req.params;
+  const { id } = req.params;
     const { description } = req.body;
-    const mobileImage = req.file ? req.file.filename : null;
+    const newFile = req.file?.filename;
 
     if (!description) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty input fields",
+        message: "Description is required",
       });
     }
 
-    const existingImage = await MobileImage.findOne({ where: { id } });
+    if (!id) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "ID is required",
+      });
+    }
+  const transaction = await sequelize.transaction();
 
+  try {
+    
+
+    const existingImage = await MobileImage.findByPk(id, { transaction });
     if (!existingImage) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Image with the provided id does not exist.",
+        message: "Image with the provided ID does not exist.",
       });
     }
 
-    if (mobileImage) {
-      // Delete old image if a new one is provided
-      const oldImagePath = path.join(__dirname, '../../public/mobile-images', existingImage.mobileImage);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
-
-      // Update with new image and description
-      await MobileImage.update(
-        { mobileImage, description },
-        { where: { id } }
-      );
-    } else {
-      // Update only description if no new image is provided
-      await MobileImage.update(
-        { description },
-        { where: { id } }
-      );
+    if (newFile) {
+      const oldPath = path.join(process.cwd(), "public/mobile-images", existingImage.mobileImage);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      existingImage.mobileImage = newFile;
     }
+
+    existingImage.description = description;
+    await existingImage.save({ transaction });
+    await transaction.commit();
 
     return res.status(200).json({
       status: "SUCCESS",
       message: "Image successfully updated!",
+      data: existingImage,
     });
-
   } catch (error) {
+    await transaction.rollback();
+    if (req.file) {
+      const failedPath = path.join(process.cwd(), "public/mobile-images", req.file.filename);
+      if (fs.existsSync(failedPath)) fs.unlinkSync(failedPath);
+    }
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
 
 exports.delete = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const mobileImageCount = await MobileImage.count();
+  const { id } = req.params;
+  if (!id) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "ID is required",
+      });
+    }
+  const transaction = await sequelize.transaction();
 
-    if (mobileImageCount === 1) {
+  try {
+    
+    const totalImages = await MobileImage.count({ transaction });
+
+    if (totalImages <= 1) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
         message: "Cannot delete the last remaining mobile profile image.",
       });
     }
-    const mobileImage = await MobileImage.findOne({
-      where: { id },
-    });
 
-    if (!mobileImage) {
+    const image = await MobileImage.findByPk(id, { transaction });
+    if (!image) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Image with the provided id does not exist.",
+        message: "Image with the provided ID does not exist.",
       });
     }
 
-    // Delete associated image
-    const imagePath = path.join(__dirname, '../../public/mobile-images', mobileImage.mobileImage);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
+    const imagePath = path.join(process.cwd(), "public/mobile-images", image.mobileImage);
+    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
 
-    await MobileImage.destroy({ where: { id } });
+    await image.destroy({ transaction });
+    await transaction.commit();
 
     return res.status(200).json({
       status: "SUCCESS",
       message: "Image successfully deleted!",
     });
-
   } catch (error) {
+    await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message,
     });
   }
 };
-

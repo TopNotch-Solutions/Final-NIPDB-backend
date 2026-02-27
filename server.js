@@ -1276,12 +1276,13 @@ sequelize
   .sync()
   .then(() => {
     console.log("Database connected");
+    const PORT = process.env.PORT;
+    server.listen(PORT, () => {
+      console.log(`Server is running on port ${PORT}`);
+    });
   })
   .catch((error) => {
     console.error("Error synchronizing database:", error);
   });
 
-const PORT = process.env.PORT;
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+

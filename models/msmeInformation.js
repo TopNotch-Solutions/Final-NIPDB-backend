@@ -33,7 +33,7 @@ const MsmeInformation = sequelize.define(
             allowNull: true,
           },
           description: {
-            type: DataTypes.STRING,
+            type: DataTypes.STRING(700),
             allowNull: true,
           },
           region: {

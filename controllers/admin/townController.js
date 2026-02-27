@@ -1,108 +1,106 @@
+const sequelize = require("../../config/dbConfig");
 const Town = require("../../models/town");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 
 exports.create = async (req, res) => {
-  try {
-    let { townName, regionId } = req.body;
-    
-    if (townName === "" || regionId === "") {
-        res.status(400).json({
-          status: "FAILURE",
-          message: "Empty input fields",
-        });
-    } else {
-      townName = CapitalizeFirstLetter(townName);
-      const town = await Town.findOne({
-        where: {
-          townName,
-        },
+  let { townName, regionId } = req.body;
+
+    if (!townName) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Town name is required.",
       });
-      if (town) {
-        res.status(409).json({
-          status: "FAILURE",
-          message: "Town already exist!",
-        });
-      } else {
-        const newTown = await Town.create({
-            townName,
-            regionId
-        });
-        if (newTown) {
-          res.status(201).json({
-            status: "SUCCESS",
-            message: "Town successfully created!",
-          });
-        } else {
-          res.status(500).json({
-            status: "FAILURE",
-            message: "Internal server error.",
-          });
-        }
-      }
     }
+
+    if (!regionId) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "region ID is required.",
+      });
+    }
+  const transaction = await sequelize.transaction();
+  try {
+    
+    townName = CapitalizeFirstLetter(townName.trim());
+
+    const existingTown = await Town.findOne({ 
+      where: { townName }, 
+      transaction 
+    });
+    if (existingTown) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "Town already exists!",
+      });
+    }
+
+    const newTown = await Town.create({ townName, regionId }, { transaction });
+    await transaction.commit();
+
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "Town successfully created!",
+      data: newTown
+    });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
+
 exports.all = async (req, res) => {
   try {
-    const town = await Town.findAll();
-    if (town) {
-      res.status(201).json({
-        status: "SUCCESS",
-        message: "Towns successfully retrieved!",
-        data: town,
-      });
-    } else {
-      res.status(500).json({
-        status: "FAILURE",
-        message: "Internal server error.",
-      });
-    }
+    const towns = await Town.findAll();
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Towns successfully retrieved!",
+      data: towns
+    });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
 
 exports.single = async (req, res) => {
-    try {
-      const id = req.params.id;
-  
-      if (id === "") {
-        res.status(400).json({
-          status: "FAILURE",
-          message: "Empty parameter",
-        });
-      } else {
-        const town = await Town.findOne({
-          where: {
-            id,
-          },
-        });
-  
-        if (town) {
-          res.status(200).json({
-            status: "SUCCESS",
-            message: "Town successfully retrieved!",
-            data: town,
-          });
-        } else {
-          res.status(404).json({
-            status: "FAILURE",
-            message: "The town provided does not exist.",
-          });
-        }
-      }
-    } catch (error) {
-      res.status(500).json({
+  const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "ID is required.",
       });
     }
-  };
+  try {
+    
+    const town = await Town.findByPk(id);
+    if (!town) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "The town provided does not exist.",
+      });
+    }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Town successfully retrieved!",
+      data: town
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};

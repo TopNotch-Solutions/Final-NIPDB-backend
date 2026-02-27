@@ -2,73 +2,82 @@ const { where } = require("sequelize");
 const fs = require('fs');
 const Opportunity = require("../../models/opportunity");
 const path = require("path");
+const sequelize = require("../../config/dbConfig");
 
 exports.create = async (req, res) => {
-  try {
-    let {description,user,link } = req.body;
-    let image = req.file.filename;
+  let { description, user, link } = req.body;
+    const image = req.file?.filename;
 
-    if (!image|| !description || !user) {
+    if (!image) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty input fields",
+        message: "Image is required",
       });
     }
-    const generalUserCount = await Opportunity.count(
-    {
-      where:{
-        user: "General User"
-      }
+
+    if (!user) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User is required",
+      });
     }
-    );
-    const buisnessUserCount = await Opportunity.count(
-      {
-        where:{
-          user: "Business User"
-        }
-      }
-      );
-      if(generalUserCount > 15  || buisnessUserCount > 15){
-        return res.status(403).json({
-          status: "FAILURE",
-          message: "Opportunities limit set to 15 per category.",
-        });
-      }
-    const existingOpportunity = await Opportunity.findOne({
-        where:{
-            description
-        }
+    if (!link) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Link is required",
+      });
+    }
+
+  const transaction = await sequelize.transaction();
+  try {
+    
+    const categoryCount = await Opportunity.count({ 
+      where: { user }, transaction 
     });
-    if(existingOpportunity){
-        return res.status(400).json({
-            status: "FAILURE",
-            message: "Opportunity already exist",
-          });
+    if (categoryCount >= 15) {
+      await transaction.rollback();
+      return res.status(403).json({
+        status: "FAILURE",
+        message: "Opportunities limit set to 15 per category.",
+      });
+    }
+
+    const existingOpportunity = await Opportunity.findOne({ 
+      where: { description: description.trim() }, transaction 
+    });
+    if (existingOpportunity) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Opportunity already exists",
+      });
     }
 
     const newOpportunity = await Opportunity.create({
       image,
-      description,
-      user,
+      description: description.trim(),
+      user: user.trim(),
       link,
       dateUploaded: Date.now()
+    }, { transaction });
+
+    await transaction.commit();
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "Opportunity successfully created!",
+      data: newOpportunity
     });
 
-    if (newOpportunity) {
-      return res.status(201).json({
-        status: "SUCCESS",
-        message: "Opportunity successfully created!",
-      });
-    } else {
-      return res.status(500).json({
-        status: "FAILURE",
-        message: "Internal server error.",
-      });
-    }
   } catch (error) {
+    await transaction.rollback();
+    if (req.file) {
+      const failedPath = path.join(process.cwd(), "public/opportunities", req.file.filename);
+      if (fs.existsSync(failedPath)) fs.unlinkSync(failedPath);
+    }
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
@@ -76,151 +85,166 @@ exports.create = async (req, res) => {
 exports.all = async (req, res) => {
   try {
     const allOpportunities = await Opportunity.findAll();
-    if (allOpportunities) {
-      res.status(201).json({
-        status: "SUCCESS",
-        message: "Opportunities successfully retrieved!",
-        data: allOpportunities,
-      });
-    } else {
-      res.status(500).json({
-        status: "FAILURE",
-        message: "Internal server error.",
-      });
-    }
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Opportunities successfully retrieved!",
+      data: allOpportunities
+    });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
+
 exports.single = async (req, res) => {
-  try {
-    const id = req.params.id;
-
-    if (id === "") {
-      res.status(400).json({
-        status: "FAILURE",
-        message: "Empty parameter",
-      });
-    } else {
-      const allOpportunity = await Opportunity.findOne({
-        where: {
-          id,
-        },
-      });
-
-      if (allOpportunity) {
-        res.status(200).json({
-          status: "SUCCESS",
-          message: "Opportunity successfully retrieved!",
-          data: allOpportunity,
-        });
-      } else {
-        res.status(500).json({
-          status: "FAILURE",
-          message: "Internal server error.",
-        });
-      }
-    }
-  } catch (error) {
-    res.status(500).json({
-      status: "FAILURE",
-      message: "Internal server error: " + error.message,
-    });
-  }
-};
-exports.update = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { description, user, link } = req.body;
-    const image = req.file ? req.file.filename : null;
-
-    if (!description || !user) {
+  const { id } = req.params;
+    if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Empty input fields",
+        message: "ID is required."
       });
     }
-
-    const existingOpportunity = await Opportunity.findOne({ where: { id } });
-
-    if (!existingOpportunity) {
+  try {
+  
+    const opportunity = await Opportunity.findByPk(id);
+    if (!opportunity) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "Opportunity with the provided id does not exist.",
+        message: "Opportunity not found."
       });
-    }
-
-    if (image) {
-      // Delete the old image if a new one is provided
-      const oldImagePath = path.join(__dirname, '../../public/opportunities', existingOpportunity.image);
-      if (fs.existsSync(oldImagePath)) {
-        fs.unlinkSync(oldImagePath);
-      }
-
-      await Opportunity.update(
-        { image, description, user, link },
-        { where: { id } }
-      );
-    } else {
-      // Update only description, user, and link if no new image is provided
-      await Opportunity.update(
-        { description, user, link },
-        { where: { id } }
-      );
     }
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Opportunity successfully updated!",
+      message: "Opportunity successfully retrieved!",
+      data: opportunity
     });
-
   } catch (error) {
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};
+
+exports.update = async (req, res) => {
+   const { id } = req.params;
+    const { description, user, link } = req.body;
+    const newImage = req.file?.filename;
+    if (!description) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Description is required"
+      });
+    }
+     if (!user) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "User is required"
+      });
+    }
+     if (!link) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Link is required"
+      });
+    }
+
+  const transaction = await sequelize.transaction();
+  try {
+
+    const existingOpportunity = await Opportunity.findByPk(id, { transaction });
+    if (!existingOpportunity) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Opportunity with the provided ID does not exist."
+      });
+    }
+
+    if (newImage) {
+      const oldPath = path.join(process.cwd(), "public/opportunities", existingOpportunity.image);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      existingOpportunity.image = newImage;
+    }
+
+    existingOpportunity.description = description;
+    existingOpportunity.user = user;
+    existingOpportunity.link = link;
+
+    await existingOpportunity.save({ transaction });
+    await transaction.commit();
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Opportunity successfully updated!",
+      data: existingOpportunity
+    });
+
+  } catch (error) {
+    await transaction.rollback();
+    if (req.file) {
+      const failedPath = path.join(process.cwd(), "public/opportunities", req.file.filename);
+      if (fs.existsSync(failedPath)) fs.unlinkSync(failedPath);
+    }
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
 
 exports.delete = async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    const opportunityCount = await Opportunity.count();
-
-    if (opportunityCount === 1) {
+  const { id } = req.params;
+   if (!id) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Cannot delete the last remaining opportunity.",
+        message: "ID is required"
       });
     }
-    const opportunity = await Opportunity.findOne({ where: { id } });
+  const transaction = await sequelize.transaction();
+  try {
+    
+    const totalOpportunities = await Opportunity.count({ transaction });
 
+    if (totalOpportunities <= 1) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Cannot delete the last remaining opportunity."
+      });
+    }
+
+    const opportunity = await Opportunity.findByPk(id, { transaction });
     if (!opportunity) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Opportunity with the provided id does not exist.",
+        message: "Opportunity with the provided ID does not exist."
       });
     }
 
-    const imagePath = path.join(__dirname, '../../public/opportunities', opportunity.image);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
-    }
+    const imagePath = path.join(process.cwd(), "public/opportunities", opportunity.image);
+    if (fs.existsSync(imagePath)) fs.unlinkSync(imagePath);
 
-    await Opportunity.destroy({ where: { id } });
+    await opportunity.destroy({ transaction });
+    await transaction.commit();
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Opportunity successfully deleted!",
+      message: "Opportunity successfully deleted!"
     });
   } catch (error) {
+    await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };

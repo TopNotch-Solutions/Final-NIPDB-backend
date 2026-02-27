@@ -1,107 +1,100 @@
+const sequelize = require("../../config/dbConfig");
 const Region = require("../../models/region");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 
 exports.create = async (req, res) => {
-  try {
-    let { regionName } = req.body;
-    
-    if (regionName === "") {
-        res.status(400).json({
-          status: "FAILURE",
-          message: "Empty input fields",
-        });
-    } else {
-      regionName = CapitalizeFirstLetter(regionName);
-      const region = await Region.findOne({
-        where: {
-          regionName,
-        },
+  let { regionName } = req.body;
+
+    if (!regionName) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Region name is required.",
       });
-      if (region) {
-        res.status(409).json({
-          status: "FAILURE",
-          message: "Region already exist!",
-        });
-      } else {
-        const newRegion = await Region.create({
-          regionName
-        });
-        if (newRegion) {
-          res.status(201).json({
-            status: "SUCCESS",
-            message: "Region successfully created!",
-          });
-        } else {
-          res.status(500).json({
-            status: "FAILURE",
-            message: "Internal server error.",
-          });
-        }
-      }
     }
+  const transaction = await sequelize.transaction();
+  try {
+  
+    regionName = CapitalizeFirstLetter(regionName.trim());
+
+    const existingRegion = await Region.findOne({ 
+      where: { regionName }, 
+      transaction 
+    });
+    if (existingRegion) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "Region already exists!",
+      });
+    }
+
+    const newRegion = await Region.create({ regionName }, { transaction });
+    await transaction.commit();
+
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "Region successfully created!",
+      data: newRegion
+    });
+
   } catch (error) {
-    res.status(500).json({
+    await transaction.rollback();
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
+
 exports.all = async (req, res) => {
   try {
-    const region = await Region.findAll();
-    if (region) {
-      res.status(201).json({
-        status: "SUCCESS",
-        message: "Regions successfully retrieved!",
-        data: region,
-      });
-    } else {
-      res.status(500).json({
-        status: "FAILURE",
-        message: "Internal server error.",
-      });
-    }
+    const regions = await Region.findAll();
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Regions successfully retrieved!",
+      data: regions
+    });
   } catch (error) {
-    res.status(500).json({
+    return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Internal server error",
+      error: error.message
     });
   }
 };
 
 exports.single = async (req, res) => {
-    try {
-      const id = req.params.id;
-  
-      if (id === "") {
-        res.status(400).json({
-          status: "FAILURE",
-          message: "Empty parameter",
-        });
-      } else {
-        const region = await Region.findOne({
-          where: {
-            id,
-          },
-        });
-  
-        if (region) {
-          res.status(200).json({
-            status: "SUCCESS",
-            message: "Region successfully retrieved!",
-            data: region,
-          });
-        } else {
-          res.status(404).json({
-            status: "FAILURE",
-            message: "The region provided does not exist.",
-          });
-        }
-      }
-    } catch (error) {
-      res.status(500).json({
+  const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "ID is required.",
       });
     }
-  };
+
+  try {
+    
+    const region = await Region.findByPk(id);
+    if (!region) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "The region provided does not exist.",
+      });
+    }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Region successfully retrieved!",
+      data: region
+    });
+
+  } catch (error) {
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error",
+      error: error.message
+    });
+  }
+};

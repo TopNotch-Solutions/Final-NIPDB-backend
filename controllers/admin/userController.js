@@ -4,20 +4,13 @@ const User = require("../../models/user");
 
 exports.allAdminList = async (req, res) => {
     try{
-        const allAdmins = await Admin.findAll();
-        if (!allAdmins) {
-            return res.status(500).json({
-              status: "FAILURE",
-              message: "Internal server error.",
-            });
-          }else{
-            res.status(200).json({
-                status: "SUCCESS",
-                message: "Admins successfully updated!",
-                data: allAdmins
-              });
-          }
-        
+         const allAdmins = await Admin.findAll();
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Admins successfully retrieved!",
+      data: allAdmins || [],
+    });
     } catch (error) {
         res.status(500).json({
           status: "FAILURE",
@@ -28,20 +21,14 @@ exports.allAdminList = async (req, res) => {
 exports.allAdminListDownload = async (req, res) => {
   try{
       const allAdmins = await Admin.findAll({
-        attributes: ["id","firstName","lastName","email","department","role","createdAt"]
-      });
-      if (!allAdmins) {
-          return res.status(500).json({
-            status: "FAILURE",
-            message: "Internal server error.",
-          });
-        }else{
-          res.status(200).json({
-              status: "SUCCESS",
-              message: "Admins successfully updated!",
-              data: allAdmins
-            });
-        }
+      attributes: ["id", "firstName", "lastName", "email", "department", "role", "createdAt"]
+    });
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Admins successfully retrieved for download!",
+      data: allAdmins || [],
+    });
       
   } catch (error) {
       res.status(500).json({
@@ -53,22 +40,14 @@ exports.allAdminListDownload = async (req, res) => {
 exports.allSystemUser = async (req, res) => {
     try{
         const totalAdmin = await Admin.count();
-        const totalUser = await User.count();
-        const totalTogether = totalAdmin + totalUser;
+    const totalUser = await User.count();
+    const totalTogether = totalAdmin + totalUser;
 
-        if(!totalTogether){
-            return res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: 0,
-              });
-        }else{
-            return  res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: totalTogether,
-              });
-        }
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Total count successfully retrieved!",
+      count: totalTogether || 0,
+    });
        
     } catch (error) {
       res.status(500).json({
@@ -79,26 +58,13 @@ exports.allSystemUser = async (req, res) => {
 }
 exports.superAdmincount = async (req, res) => {
     try{
-        const totalAdmin = await Admin.count({
-            where:{
-                role:"Super admin"
-            }
-        });
+       const totalSuperAdmin = await Admin.count({ where: { role: "Super admin" } });
 
-
-        if(!totalAdmin){
-            return res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: 0,
-              });
-        }else{
-            return  res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: totalAdmin,
-              });
-        }
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Super admin count successfully retrieved!",
+      count: totalSuperAdmin || 0,
+    });
        
     } catch (error) {
       res.status(500).json({
@@ -109,26 +75,13 @@ exports.superAdmincount = async (req, res) => {
 }
 exports.allAdmincount = async (req, res) => {
     try{
-        const totalAdmin = await Admin.count({
-            where:{
-                role: "Admin"
-            }
-        });
+      const totalAdmin = await Admin.count({ where: { role: "Admin" } });
 
-
-        if(!totalAdmin){
-            return res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: 0,
-              });
-        }else{
-            return  res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: totalAdmin,
-              });
-        }
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Admin count successfully retrieved!",
+      count: totalAdmin || 0,
+    });
        
     } catch (error) {
       res.status(500).json({
@@ -139,22 +92,13 @@ exports.allAdmincount = async (req, res) => {
 }
 exports.appUserCount = async (req, res) => {
     try{
-        const totalUser = await User.count();
+       const totalUser = await User.count();
 
-
-        if(!totalUser){
-            return res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: 0,
-              });
-        }else{
-            return  res.status(200).json({
-                status: "SUCCESS",
-                message: "Total count successfully retrieved!",
-                count: totalUser,
-              });
-        }
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "App user count successfully retrieved!",
+      count: totalUser || 0,
+    });
        
     } catch (error) {
       res.status(500).json({
