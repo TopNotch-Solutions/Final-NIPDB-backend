@@ -5,6 +5,7 @@ const OTP = require("../../models/otpVerification");
 require("dotenv").config();
 
 const sendOTPVerification = async ({ id, email, role }, res, { subject }, transaction = null) => {
+  console.log(id, email,role, subject)
   if (!id) {
       return res.status(400).json({
         status: "FAILURE",
