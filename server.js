@@ -160,6 +160,33 @@ const removeBusinessByRole = (id, role) => {
   );
 };
 
+const buildSocketAck = (callback) => {
+  return {
+    success: (payload = {}) => {
+      if (typeof callback === "function") {
+        callback({ status: "SUCCESS", ...payload });
+      }
+    },
+    failure: (message = "Internal server error", payload = {}) => {
+      if (typeof callback === "function") {
+        callback({ status: "FAILURE", message, ...payload });
+      }
+    },
+  };
+};
+
+const onSocketEvent = (socket, eventName, handler) => {
+  socket.on(eventName, async (payload, callback) => {
+    const ack = buildSocketAck(callback);
+    try {
+      await handler(payload, ack, callback);
+    } catch (error) {
+      console.error(`Socket event error: ${eventName}`, error);
+      ack.failure(error.message || "Internal server error");
+    }
+  });
+};
+
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
 
@@ -323,9 +350,10 @@ io.on("connection", (socket) => {
     }
   );
   // message is still a notification.
-  socket.on(
+  onSocketEvent(
+    socket,
     "send-chat-message-user",
-    async ({ receiverId, message, senderId, businessId }) => {
+    async ({ receiverId, message, senderId, businessId } = {}, ack) => {
       console.log(receiverId, message, senderId, businessId);
       try {
         let role = "User";
@@ -436,12 +464,10 @@ io.on("connection", (socket) => {
                   },
                 });
                 if (!conversations.length) {
-                  return res.status(200).json({
-                    status: "SUCCESS",
-                    message: "No conversations found",
+                  io.to(receiver.socketId).emit("new-lastest-messages-business", {
                     data: [],
                   });
-                }
+                } else {
                 const userIds = [
                   ...new Set(
                     conversations.map((convo) =>
@@ -605,6 +631,7 @@ io.on("connection", (socket) => {
                 io.to(receiver.socketId).emit("new-lastest-messages-business", {
                   data: results.filter((result) => result !== null),
                 });
+                }
               } else {
                 const allUserDeviceTokens = await FcmToken.findAll({
                   where: { userId: receiverId, role: "Business" },
@@ -719,18 +746,28 @@ io.on("connection", (socket) => {
                   data: conversationData,
                 });
               }
+
             }
+          } else {
+            ack.failure("Sender or receiver not found");
+            return;
           }
+        } else {
+          ack.failure("Empty parameter");
+          return;
         }
+        ack.success({ message: "Message processed successfully" });
       } catch (error) {
         console.error("Error sending notifications:", error);
+        ack.failure("Internal server error: " + error.message);
       }
     }
   );
 
-  socket.on(
+  onSocketEvent(
+    socket,
     "send-chat-message-business",
-    async ({ receiverId, message, senderId, businessId }) => {
+    async ({ receiverId, message, senderId, businessId } = {}, ack) => {
       console.log(receiverId, message, senderId, businessId);
       try {
         let role = "User";
@@ -1109,24 +1146,31 @@ io.on("connection", (socket) => {
                   data: conversationData,
                 });
               }
+
             }
+          } else {
+            ack.failure("Sender, receiver, or business not found");
+            return;
           }
+        } else {
+          ack.failure("Empty parameter");
+          return;
         }
+        ack.success({ message: "Message processed successfully" });
       } catch (error) {
         console.error("Error sending notifications:", error);
+        ack.failure("Internal server error: " + error.message);
       }
     }
   );
 
-  socket.on("getSingleConversation", async (data, callback) => {
+  onSocketEvent(socket, "getSingleConversation", async (data, ack, callback) => {
     try {
       const { senderId, businessId, conversationId, id } = data;
 
       if (!senderId || !id || !businessId || !conversationId) {
-        return callback({
-          status: "FAILURE",
-          message: "Empty parameter",
-        });
+        ack.failure("Empty parameter");
+        return;
       }
 
       let recieverId;
@@ -1144,10 +1188,8 @@ io.on("connection", (socket) => {
         });
 
         if (!otherUser) {
-          return callback({
-            status: "FAILURE",
-            message: "Other user not found",
-          });
+          ack.failure("Other user not found");
+          return;
         }
 
         recieverId =
@@ -1186,16 +1228,17 @@ io.on("connection", (socket) => {
         received: receivedMessages,
       };
 
-      callback({
-        status: "SUCCESS",
+      ack.success({
         message: "Messages successfully retrieved!",
         data: conversation,
       });
     } catch (error) {
-      callback({
-        status: "FAILURE",
-        message: "Internal server error: " + error.message,
-      });
+      if (typeof callback === "function") {
+        callback({
+          status: "FAILURE",
+          message: "Internal server error: " + error.message,
+        });
+      }
     }
   });
 

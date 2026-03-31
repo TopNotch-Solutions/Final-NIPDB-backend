@@ -769,31 +769,32 @@ exports.messageExist = async (req, res) => {
 
 exports.count = async (req, res) => {
   try {
-    let id = req.user.id;
-    let senderId = req.params.senderId;
-    let conversationId = req.body;
+    const receiverId = req.user.id;
+    const { senderId } = req.params;
+    const { conversationId } = req.query;
 
-    if (!id || !senderId || !conversationId) {
-      return res.status(404).json({
+    if (!receiverId || !senderId) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "Reciever ID is required.",
+        message: "Receiver and sender IDs are required.",
       });
     }
+
+    const whereClause = {
+      receiverId,
+      senderId,
+      viewed: false,
+      receiverDelete: false,
+    };
+
+    if (conversationId) {
+      whereClause.conversationId = conversationId;
+    }
+
     const totalCount = await Message.count({
-      where: {
-        receiverId: id,
-        senderId,
-        conversationId,
-        viewed: false,
-      },
+      where: whereClause,
     });
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Total count successfully retrieved!",
-        count: totalCount,
-      });
-    }
+
     res.status(200).json({
       status: "SUCCESS",
       message: "Total count successfully retrieved!",
@@ -808,28 +809,22 @@ exports.count = async (req, res) => {
 };
 exports.allCount = async (req, res) => {
   try {
-    let id = req.user.id;
+    const receiverId = req.user.id;
 
-    if (!id) {
-      return res.status(404).json({
+    if (!receiverId) {
+      return res.status(400).json({
         status: "FAILURE",
-        message: "Reciever ID is required.",
+        message: "Receiver ID is required.",
       });
     }
     const totalCount = await Message.count({
       where: {
-        receiverId: id,
+        receiverId,
         userType: "User",
         viewed: false,
+        receiverDelete: false,
       },
     });
-    if (!totalCount) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        message: "Total count successfully retrieved!",
-        count: totalCount,
-      });
-    }
     res.status(200).json({
       status: "SUCCESS",
       message: "Total count successfully retrieved!",
@@ -844,33 +839,24 @@ exports.allCount = async (req, res) => {
 };
 exports.allBusinessCount = async (req, res) => {
   try {
-    let id = req.user.id;
-    let { businessId } = req.params;
+    const receiverId = req.user.id;
+    const { businessId } = req.params;
 
-    if (!id || !businessId) {
-      return res.status(404).json({
+    if (!receiverId || !businessId) {
+      return res.status(400).json({
         status: "FAILURE",
         message: "Receiver/Business ID is required.",
       });
     }
 
-    let allBusinessTotalCount = 0;
-
-    const allBusinessIds = await Conversation.findAll({
-      where: { businessId },
-      attributes: ["businessId", "id"],
+    const allBusinessTotalCount = await Message.count({
+      where: {
+        receiverId,
+        businessId,
+        viewed: false,
+        receiverDelete: false,
+      },
     });
-
-    for (const business of allBusinessIds) {
-      const count = await Message.count({
-        where: {
-          receiverId: id,
-          conversationId: business.id,
-          viewed: false,
-        },
-      });
-      allBusinessTotalCount += count;
-    }
 
     res.status(200).json({
       status: "SUCCESS",
@@ -957,8 +943,8 @@ exports.update = async (req, res) => {
 exports.viewed = async (req, res) => {
   try {
     const receiverId = req.user.id;
-    const {senderId } = req.params;
-    const {conversationId} = req.body;
+    const { senderId } = req.params;
+    const { conversationId } = req.body;
 
     if (!receiverId || !senderId || !conversationId) {
       return res.status(400).json({
@@ -977,13 +963,15 @@ exports.viewed = async (req, res) => {
       });
     }
 
-    await Message.update(
+    const [updatedCount] = await Message.update(
       { viewed: true },
       {
         where: {
-         receiverId,
-         conversationId,
-         senderId
+          receiverId,
+          senderId,
+          conversationId,
+          viewed: false,
+          receiverDelete: false,
         },
       }
     );
@@ -991,6 +979,7 @@ exports.viewed = async (req, res) => {
     res.status(200).json({
       status: "SUCCESS",
       message: "Message statuses successfully updated!",
+      count: updatedCount,
     });
   } catch (error) {
     res.status(500).json({
