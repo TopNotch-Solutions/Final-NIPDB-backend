@@ -67,7 +67,7 @@ exports.signup = async (req, res) => {
       await sendOTPVerification(
         { id: existingUser.id, email: existingUser.email, role: existingUser.role || "User" },
         res,
-        { subject }
+        { subject },t
       );
       await t.commit();
       return;
@@ -108,7 +108,8 @@ exports.signup = async (req, res) => {
   await sendOTPVerification(
     { id: newUser.id, email: newUser.email, role: "User" },
     res,
-    { subject }
+    { subject },
+    t
   );
  await t.commit();
 } catch (error) {
@@ -346,7 +347,8 @@ exports.sendOTP = async (req, res) => {
     await sendOTPVerification(
       { id: existingUser.id, email, role: "User" },
       res,
-      { subject }
+      { subject },
+      t
     );
 
     await t.commit();
@@ -414,7 +416,8 @@ exports.login = async (req, res) => {
       await sendOTPVerification(
         { id: user.id, email, role: "User" },
         res,
-        { subject }
+        { subject },
+        t
       );
       await t.commit();
       return; 
@@ -857,7 +860,22 @@ exports.forgotPasswordNewPassword = async (req, res) => {
         data: null,
       });
     }
+    const isMatch = await bcrypt.compare(currentPassword, existingUser.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        status: "FAILURE",
+        message: "Invalid current password.",
+      });
+    }
 
+
+    const isSameAsOld = await bcrypt.compare(newPassword, existingUser.password);
+    if (isSameAsOld) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "New password cannot be the same as your current password.",
+      });
+    }
     const salt = await bcrypt.genSalt();
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
@@ -921,7 +939,8 @@ exports.forgotPasswordResendOTP = async (req, res) => {
     await sendOTPVerification(
       { id: userId, email, role: "User" },
       res,
-      { subject }
+      { subject },
+      t
     );
 
     await t.commit();
@@ -1300,6 +1319,14 @@ exports.changePassword = async (req, res) => {
         status: "FAILURE",
         message: "New password and confirm password do not match.",
         data: null,
+      });
+    }
+
+    const isSameAsOld = await bcrypt.compare(newPassword, existingUser.password);
+    if (isSameAsOld) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "New password cannot be the same as your current password.",
       });
     }
 
