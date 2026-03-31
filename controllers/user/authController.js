@@ -525,7 +525,7 @@ exports.forgotPasswordEmail = async (req, res) => {
     await OTP.destroy({ where: { userId }, transaction: t });
 
     const subject = "In4MSME Forgot Password Verification";
-    await sendOTPVerification({ id: userId, email, role: "User" }, res, { subject });
+    await sendOTPVerification({ id: userId, email, role: "User" }, res, { subject },t);
 
     await t.commit();
 

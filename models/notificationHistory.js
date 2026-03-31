@@ -45,12 +45,5 @@ const NotificationHistory = sequelize.define(
         timestamps: true
       }
 );
-// MsmeInformation.hasOne(MsmeFounderInfo, { as: 'founderInfo', foreignKey: 'businessId' });
-// MsmeInformation.hasOne(MsmeContactInfo, { as: 'contactInfo', foreignKey: 'businessId' });
-// MsmeInformation.hasOne(MsmeAdditionalInfo, { as: 'additionalInfo', foreignKey: 'businessId' });
-
-// MsmeFounderInfo.belongsTo(MsmeInformation, { foreignKey: 'businessId' });
-// MsmeContactInfo.belongsTo(MsmeInformation, { foreignKey: 'businessId' });
-// MsmeAdditionalInfo.belongsTo(MsmeInformation, { foreignKey: 'businessId' });
 
 module.exports = NotificationHistory;
