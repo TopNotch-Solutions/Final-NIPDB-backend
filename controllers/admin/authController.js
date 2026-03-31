@@ -384,6 +384,21 @@ exports.changePassword = async (req, res) => {
         .status(404)
         .json({ status: "FAILURE", message: "User not found!" });
     }
+    const isMatch = await bcrypt.compare(currentPassword, existingUser.password);
+    if (!isMatch) {
+      return res.status(401).json({
+        status: "FAILURE",
+        message: "Invalid current password.",
+      });
+    }
+
+    const isSameAsOld = await bcrypt.compare(newPassword, existingUser.password);
+    if (isSameAsOld) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "New password cannot be the same as your current password.",
+      });
+    }
     const isExisting = await bcrypt.compare(
       currentPassword,
       existingUser.password
