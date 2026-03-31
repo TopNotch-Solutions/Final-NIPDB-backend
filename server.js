@@ -160,6 +160,49 @@ const removeBusinessByRole = (id, role) => {
   );
 };
 
+const getUnreadCountForSender = async ({ receiverId, senderId, conversationId }) => {
+  if (!receiverId || !senderId) return 0;
+
+  const whereClause = {
+    receiverId,
+    senderId,
+    viewed: false,
+    receiverDelete: false,
+  };
+
+  if (conversationId) {
+    whereClause.conversationId = conversationId;
+  }
+
+  return Message.count({ where: whereClause });
+};
+
+const getAllUnreadCount = async ({ receiverId }) => {
+  if (!receiverId) return 0;
+
+  return Message.count({
+    where: {
+      receiverId,
+      userType: "User",
+      viewed: false,
+      receiverDelete: false,
+    },
+  });
+};
+
+const getAllBusinessUnreadCount = async ({ receiverId, businessId }) => {
+  if (!receiverId || !businessId) return 0;
+
+  return Message.count({
+    where: {
+      receiverId,
+      businessId,
+      viewed: false,
+      receiverDelete: false,
+    },
+  });
+};
+
 const buildSocketAck = (callback) => {
   return {
     success: (payload = {}) => {
@@ -347,6 +390,102 @@ io.on("connection", (socket) => {
       } catch (error) {
         console.error("Error sending notifications:", error);
       }
+    }
+  );
+
+  onSocketEvent(
+    socket,
+    "count",
+    async ({ receiverId, senderId, conversationId } = {}, ack) => {
+      if (!receiverId || !senderId) {
+        ack.failure("Receiver and sender IDs are required.");
+        return;
+      }
+
+      const count = await getUnreadCountForSender({
+        receiverId,
+        senderId,
+        conversationId,
+      });
+
+      ack.success({ count });
+    }
+  );
+
+  onSocketEvent(socket, "allCount", async ({ receiverId } = {}, ack) => {
+    if (!receiverId) {
+      ack.failure("Receiver ID is required.");
+      return;
+    }
+
+    const count = await getAllUnreadCount({ receiverId });
+    ack.success({ count });
+  });
+
+  onSocketEvent(
+    socket,
+    "allBusinessCount",
+    async ({ receiverId, businessId } = {}, ack) => {
+      if (!receiverId || !businessId) {
+        ack.failure("Receiver/Business ID is required.");
+        return;
+      }
+
+      const count = await getAllBusinessUnreadCount({ receiverId, businessId });
+      ack.success({ count });
+    }
+  );
+
+  onSocketEvent(
+    socket,
+    "viewed",
+    async ({ receiverId, senderId, conversationId, businessId } = {}, ack) => {
+      if (!receiverId || !senderId || !conversationId) {
+        ack.failure("Empty parameters.");
+        return;
+      }
+
+      const checkUser = await User.findOne({
+        where: { id: receiverId },
+      });
+
+      if (!checkUser) {
+        ack.failure("User does not exist!");
+        return;
+      }
+
+      const [updatedCount] = await Message.update(
+        { viewed: true },
+        {
+          where: {
+            receiverId,
+            senderId,
+            conversationId,
+            viewed: false,
+            receiverDelete: false,
+          },
+        }
+      );
+
+      const senderCount = await getUnreadCountForSender({
+        receiverId,
+        senderId,
+        conversationId,
+      });
+      const allCount = await getAllUnreadCount({ receiverId });
+      const businessCount = await getAllBusinessUnreadCount({
+        receiverId,
+        businessId: Number(businessId) || businessId,
+      });
+
+      ack.success({
+        count: updatedCount,
+        counts: {
+          count: senderCount,
+          allCount,
+          allBusinessCount: businessCount,
+        },
+      });
     }
   );
   // message is still a notification.
@@ -747,6 +886,29 @@ io.on("connection", (socket) => {
                 });
               }
 
+              const senderCount = await getUnreadCountForSender({
+                receiverId,
+                senderId,
+                conversationId,
+              });
+              const allCount = await getAllUnreadCount({ receiverId });
+              const allBusinessCount = await getAllBusinessUnreadCount({
+                receiverId,
+                businessId,
+              });
+
+              if (receiver) {
+                io.to(receiver.socketId).emit("count-updated", {
+                  receiverId,
+                  senderId,
+                  conversationId,
+                  businessId,
+                  count: senderCount,
+                  allCount,
+                  allBusinessCount,
+                });
+              }
+
             }
           } else {
             ack.failure("Sender or receiver not found");
@@ -1144,6 +1306,29 @@ io.on("connection", (socket) => {
 
                 io.to(sender.socketId).emit("new-chat-messages-business", {
                   data: conversationData,
+                });
+              }
+
+              const senderCount = await getUnreadCountForSender({
+                receiverId: senderId,
+                senderId: receiverId,
+                conversationId,
+              });
+              const allCount = await getAllUnreadCount({ receiverId: senderId });
+              const allBusinessCount = await getAllBusinessUnreadCount({
+                receiverId: senderId,
+                businessId,
+              });
+
+              if (receiver) {
+                io.to(receiver.socketId).emit("count-updated", {
+                  receiverId: senderId,
+                  senderId: receiverId,
+                  conversationId,
+                  businessId,
+                  count: senderCount,
+                  allCount,
+                  allBusinessCount,
                 });
               }
 
