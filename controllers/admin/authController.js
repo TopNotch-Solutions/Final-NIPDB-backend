@@ -79,21 +79,23 @@ exports.signup = async (req, res) => {
     });
 
     // const mailOptions = {
-    //   from: 'in4msme@nipdb.com',
+    //   from: 'IN4MSME@nipdb.com',
     //   to: email,
-    //   subject: "In4Msme Portal Onboarding",
+    //   subject: "IN4MSME Portal Onboarding",
     //   html: `<p>${newUser.firstName} ${newUser.lastName}, Here is your password <b>${password}</b>. Do not share it with anyone.</p>`,
     // };
+    const portalUrl = "http://41.219.71.112:8080";
+
     const mailOptions = {
       from:  process.env.USERNAME,
       to: email,
-      subject: "In4Msme Portal Onboarding",
+      subject: "IN4MSME Portal Onboarding",
       html: `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8" />
-  <title>In4Msme Portal Onboarding</title>
+  <title>IN4MSME Portal Onboarding</title>
 </head>
 <body style="margin:0; padding:0; background-color:#f4f6f9; font-family: Arial, sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9; padding:30px 0;">
@@ -102,7 +104,7 @@ exports.signup = async (req, res) => {
         <table width="500" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:8px; padding:40px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
           <tr>
             <td align="center" style="padding-bottom:20px;">
-              <h2 style="margin:0; color:#009548;">In4Msme Portal Onboarding</h2>
+              <h2 style="margin:0; color:#009548;">IN4MSME Portal Onboarding</h2>
               <p style="margin:5px 0 0 0; color:#7f8c8d; font-size:14px;">
                 Account credentials
               </p>
@@ -140,6 +142,20 @@ exports.signup = async (req, res) => {
           </tr>
           <tr>
             <td align="center" style="padding-top:30px;">
+              <a href="${portalUrl}" style="display:inline-block; background-color:#009548; color:#ffffff; text-decoration:none; padding:12px 24px; border-radius:6px; font-size:14px; font-weight:bold;">
+                Go to IN4MSME Portal
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top:12px;">
+              <p style="font-size:12px; color:#95a5a6; margin:0;">
+                Portal link: <a href="${portalUrl}" style="color:#009548; text-decoration:none;">${portalUrl}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top:8px;">
               <p style="font-size:12px; color:#95a5a6; margin:0;">
                 For security, please change your password after first login.
               </p>
@@ -417,7 +433,7 @@ exports.forgotPassword = async (req, res) => {
     }
     const t = await sequelize.transaction();
     let userId = existingUser.id;
-    const subject = "In4MSME Forgot Password Verification";
+    const subject = "IN4MSME Forgot Password Verification";
     await sendOTPVerification({ id: userId, email, role: "Admin" }, res, {
       subject,
     },t);
