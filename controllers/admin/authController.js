@@ -88,7 +88,70 @@ exports.signup = async (req, res) => {
       from:  process.env.USERNAME,
       to: email,
       subject: "In4Msme Portal Onboarding",
-      html: `<p>${newUser.firstName} ${newUser.lastName}, Here is your password <b>${password}</b>. Do not share it with anyone.</p>`,
+      html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>In4Msme Portal Onboarding</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f6f9; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9; padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="500" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:8px; padding:40px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+          <tr>
+            <td align="center" style="padding-bottom:20px;">
+              <h2 style="margin:0; color:#009548;">In4Msme Portal Onboarding</h2>
+              <p style="margin:5px 0 0 0; color:#7f8c8d; font-size:14px;">
+                Account credentials
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:20px 0;">
+              <p style="font-size:15px; color:#34495e; margin:0;">
+                ${newUser.firstName} ${newUser.lastName}, your account has been created successfully.
+                Use the password below to log in:
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding:20px 0;">
+              <div style="
+                display:inline-block;
+                padding:15px 30px;
+                font-size:20px;
+                letter-spacing:1px;
+                font-weight:bold;
+                color:#ffffff;
+                background-color:#009548;
+                border-radius:6px;">
+                ${password}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top:10px;">
+              <p style="font-size:13px; color:#e74c3c; margin:0;">
+                Do not share this password with anyone.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top:30px;">
+              <p style="font-size:12px; color:#95a5a6; margin:0;">
+                For security, please change your password after first login.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
     };
 
     transporter.sendMail(mailOptions, async (error, info) => {

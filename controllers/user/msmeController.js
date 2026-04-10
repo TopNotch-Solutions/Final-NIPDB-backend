@@ -18,6 +18,7 @@ const sendEmail = require("../../utils/mobile/sendEmail");
 const fs = require("fs");
 const path = require("path");
 const sequelize = require("../../config/dbConfig");
+const nodemailer = require("nodemailer");
 
 exports.create = async (req, res) => {
   const { id } = req.user;
@@ -287,6 +288,82 @@ exports.create = async (req, res) => {
     );
 
     await transaction.commit();
+
+    try {
+      const adminRecipients = await Admin.findAll({
+        attributes: ["email", "firstName", "lastName"],
+        where: {
+          email: {
+            [Op.ne]: null,
+          },
+        },
+      });
+
+      const adminEmails = adminRecipients
+        .map((admin) => (admin.email || "").trim())
+        .filter((emailValue) => emailValue.length > 0);
+
+      if (adminEmails.length > 0) {
+        const transporter = nodemailer.createTransport({
+          service: "gmail",
+          host: "smtp.gmail.com",
+          port: 587,
+          secure: false,
+          auth: {
+            user: process.env.USERNAME,
+            pass: process.env.PASSWORD,
+          },
+        });
+
+        const submittedBy = `${checkExistingUser.firstName || ""} ${checkExistingUser.lastName || ""}`.trim();
+        const businessName = businessDisplayName || businessRegistrationName;
+
+        const mailOptions = {
+          from: process.env.USERNAME,
+          to: adminEmails,
+          subject: "New Business Application Submitted",
+          html: `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>New Business Application</title>
+</head>
+<body style="margin:0; padding:0; background-color:#f4f6f9; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f9; padding:30px 0;">
+    <tr>
+      <td align="center">
+        <table width="500" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:8px; padding:30px; box-shadow:0 4px 12px rgba(0,0,0,0.05);">
+          <tr>
+            <td align="center" style="padding-bottom:20px;">
+              <h2 style="margin:0; color:#009548;">New Business Submission</h2>
+              <p style="margin:8px 0 0 0; color:#7f8c8d; font-size:14px;">In4MSME Admin Notification</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="font-size:14px; color:#34495e; line-height:1.6;">
+              <p style="margin:0 0 10px 0;"><strong>Business:</strong> ${businessName}</p>
+              <p style="margin:0 0 10px 0;"><strong>Submitted by:</strong> ${submittedBy || "N/A"}</p>
+              <p style="margin:0 0 10px 0;"><strong>Registration number:</strong> ${businessRegistrationNumber || "N/A"}</p>
+              <p style="margin:0 0 10px 0;"><strong>Region / Town:</strong> ${region || "N/A"} / ${town || "N/A"}</p>
+              <p style="margin:16px 0 0 0;">A new business application has been submitted and is pending review.</p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`,
+        };
+
+        await transporter.sendMail(mailOptions);
+      }
+    } catch (mailError) {
+      console.error("Failed to send new business notification email to admin:", mailError);
+    }
+
     sendEmail({
       email: checkExistingUser.email,
       subject: "Application to in4msme pending approval",
