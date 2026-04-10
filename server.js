@@ -350,7 +350,7 @@ io.on("connection", (socket) => {
   onSocketEvent(
     socket,
     "create-business-review",
-    async ({ userId, businessId, review } = {}, ack) => {
+    async ({ businessId, review } = {}, ack) => {
       if (!businessId || !review) {
         ack.failure("businessId and review are required.");
         return;
@@ -370,15 +370,13 @@ io.on("connection", (socket) => {
       }
 
       const newReview = await BusinessReview.create({
-        userId: userId || null,
         businessId,
         review: sanitizedReview,
       });
 
       const reviewPayload = {
         id: newReview.id,
-        userId: newReview.userId,
-        isAnonymous: !newReview.userId,
+        isAnonymous: true,
         businessId,
         review: newReview.review,
         createdAt: newReview.createdAt,
@@ -431,13 +429,6 @@ io.on("connection", (socket) => {
 
       const { count, rows } = await BusinessReview.findAndCountAll({
         where: { businessId },
-        include: [
-          {
-            model: User,
-            attributes: ["id", "firstName", "lastName", "profileImage"],
-            required: false,
-          },
-        ],
         order: [["createdAt", "DESC"]],
         limit: numericLimit,
         offset,
