@@ -45,12 +45,12 @@ const Admin = sequelize.define(
           },
           role: {
             type: DataTypes.ENUM,
-            values: ['Admin', 'Super admin'],
+            values: ['Admin', 'Super admin', "Viewer"],
             allowNull: false,
             validate: {
               isIn: {
                 args: [['Admin', 'Super admin']],
-                msg: "Role must be either 'Admin' or 'Super admin'"
+                msg: "Role must be either 'Admin', 'Super admin' or 'Viewer'"
               }
             }
           }
