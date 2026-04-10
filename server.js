@@ -13,7 +13,7 @@ const Notification = require("./models/notification");
 const Message = require("./models/directMessage");
 const AdminNotification = require("./models/adminNotifications");
 const Conversation = require("./models/conversation");
-const { Op } = require("sequelize");
+const { Op, fn, col } = require("sequelize");
 require("dotenv").config();
 
 const MsmeInformation = require("./models/msmeInformation");
@@ -47,6 +47,8 @@ const { where } = require("sequelize");
 const CapitalizeFirstLetter = require("./utils/shared/capitalizeFirstLetter");
 const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
+const BusinessRating = require("./models/businessRating");
+const BusinessReview = require("./models/businessReview");
 
 const app = express();
 const server = http.createServer(app);
@@ -230,6 +232,41 @@ const onSocketEvent = (socket, eventName, handler) => {
   });
 };
 
+const buildBusinessRatingSummary = async (businessId) => {
+  const [averageRow, totalCount, groupedRows] = await Promise.all([
+    BusinessRating.findOne({
+      where: { businessId },
+      attributes: [[fn("AVG", col("score")), "averageScore"]],
+      raw: true,
+    }),
+    BusinessRating.count({ where: { businessId } }),
+    BusinessRating.findAll({
+      where: { businessId },
+      attributes: ["score", [fn("COUNT", col("id")), "count"]],
+      group: ["score"],
+      raw: true,
+    }),
+  ]);
+
+  const grouped = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+  groupedRows.forEach((row) => {
+    grouped[Number(row.score)] = Number(row.count) || 0;
+  });
+
+  const stars = [1, 2, 3, 4, 5].map((star) => {
+    const count = grouped[star];
+    const percentage = totalCount > 0 ? Number(((count / totalCount) * 100).toFixed(2)) : 0;
+    return { star, count, percentage };
+  });
+
+  return {
+    businessId,
+    averageScore: totalCount > 0 ? Number((Number(averageRow?.averageScore || 0)).toFixed(2)) : 0,
+    totalRatings: totalCount,
+    stars,
+  };
+};
+
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
 
@@ -260,6 +297,164 @@ io.on("connection", (socket) => {
     removeBusinessByRole(id, role);
     console.log(`Removed ${role} for user ${id}`);
   });
+
+  onSocketEvent(
+    socket,
+    "upsert-business-rating",
+    async ({ userId, businessId, score } = {}, ack) => {
+      if (!userId || !businessId || !score) {
+        ack.failure("userId, businessId and score are required.");
+        return;
+      }
+
+      const numericScore = Number(score);
+      if (!Number.isInteger(numericScore) || numericScore < 1 || numericScore > 5) {
+        ack.failure("score must be an integer between 1 and 5.");
+        return;
+      }
+
+      const [user, business] = await Promise.all([
+        User.findOne({ where: { id: userId } }),
+        MsmeInformation.findOne({ where: { id: businessId } }),
+      ]);
+
+      if (!user || !business) {
+        ack.failure("User or business not found.");
+        return;
+      }
+
+      const existing = await BusinessRating.findOne({
+        where: { userId, businessId },
+      });
+
+      if (existing) {
+        await existing.update({ score: numericScore });
+      } else {
+        await BusinessRating.create({
+          userId,
+          businessId,
+          score: numericScore,
+        });
+      }
+
+      const summary = await buildBusinessRatingSummary(businessId);
+
+      io.emit("business-rating-summary-updated", { data: summary });
+      ack.success({
+        message: "Business rating saved successfully.",
+        data: summary,
+      });
+    }
+  );
+
+  onSocketEvent(
+    socket,
+    "create-business-review",
+    async ({ userId, businessId, review } = {}, ack) => {
+      if (!businessId || !review) {
+        ack.failure("businessId and review are required.");
+        return;
+      }
+
+      const sanitizedReview = String(review).trim();
+      if (!sanitizedReview) {
+        ack.failure("review cannot be empty.");
+        return;
+      }
+
+      const business = await MsmeInformation.findOne({ where: { id: businessId } });
+
+      if (!business) {
+        ack.failure("Business not found.");
+        return;
+      }
+
+      const newReview = await BusinessReview.create({
+        userId: userId || null,
+        businessId,
+        review: sanitizedReview,
+      });
+
+      const reviewPayload = {
+        id: newReview.id,
+        userId: newReview.userId,
+        isAnonymous: !newReview.userId,
+        businessId,
+        review: newReview.review,
+        createdAt: newReview.createdAt,
+        updatedAt: newReview.updatedAt,
+      };
+
+      io.emit("business-review-created", { data: reviewPayload });
+      ack.success({
+        message: "Business review added successfully.",
+        data: reviewPayload,
+      });
+    }
+  );
+
+  onSocketEvent(
+    socket,
+    "get-business-rating-summary",
+    async ({ businessId } = {}, ack) => {
+      if (!businessId) {
+        ack.failure("businessId is required.");
+        return;
+      }
+
+      const business = await MsmeInformation.findOne({ where: { id: businessId } });
+      if (!business) {
+        ack.failure("Business not found.");
+        return;
+      }
+
+      const summary = await buildBusinessRatingSummary(businessId);
+      ack.success({
+        message: "Business rating summary retrieved successfully.",
+        data: summary,
+      });
+    }
+  );
+
+  onSocketEvent(
+    socket,
+    "get-business-reviews",
+    async ({ businessId, page = 1, limit = 20 } = {}, ack) => {
+      if (!businessId) {
+        ack.failure("businessId is required.");
+        return;
+      }
+
+      const numericPage = Number(page) > 0 ? Number(page) : 1;
+      const numericLimit = Number(limit) > 0 ? Number(limit) : 20;
+      const offset = (numericPage - 1) * numericLimit;
+
+      const { count, rows } = await BusinessReview.findAndCountAll({
+        where: { businessId },
+        include: [
+          {
+            model: User,
+            attributes: ["id", "firstName", "lastName", "profileImage"],
+            required: false,
+          },
+        ],
+        order: [["createdAt", "DESC"]],
+        limit: numericLimit,
+        offset,
+      });
+
+      ack.success({
+        message: "Business reviews retrieved successfully.",
+        data: rows,
+        pagination: {
+          totalRecords: count,
+          currentPage: numericPage,
+          totalPages: Math.ceil(count / numericLimit),
+          pageSize: numericLimit,
+        },
+      });
+    }
+  );
 
   socket.on(
     "sendToSingleNotificationAdmin",
