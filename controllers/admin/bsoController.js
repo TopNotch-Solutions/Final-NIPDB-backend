@@ -521,10 +521,10 @@ exports.importFromSheet = async (req, res) => {
         continue;
       }
 
-      if (description.length > 350) {
+      if (description.length > 700) {
         skipped.push({
           row: excelRow,
-          reason: "Description exceeds 350 characters",
+          reason: "Description exceeds 700 characters",
         });
         continue;
       }
