@@ -4,6 +4,7 @@ const path = require("path");
 const fs = require('fs');
 const sequelize = require("../../config/dbConfig");
 const { Op } = require("sequelize");
+const XLSX = require("xlsx");
 
 exports.create = async (req, res) => {
   let { name, type, contactNumber, website, email, description } = req.body;
@@ -416,6 +417,202 @@ exports.delete = async (req, res) => {
       message: "Internal server error",
       error: error.message,
     });
+  }
+};
+
+exports.importFromSheet = async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO sheet file is required.",
+    });
+  }
+
+  const transaction = await sequelize.transaction();
+  const uploadedFilePath = path.join(process.cwd(), "public/bsos", req.file.filename);
+
+  try {
+    const workbook = XLSX.readFile(uploadedFilePath);
+    const firstSheetName = workbook.SheetNames[0];
+
+    if (!firstSheetName) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Sheet is empty.",
+      });
+    }
+
+    const sheet = workbook.Sheets[firstSheetName];
+    const expectedHeaders = [
+      "Name",
+      "Type",
+      "Contact number",
+      "Website",
+      "Email",
+      "Description",
+    ];
+    const headerRow = XLSX.utils.sheet_to_json(sheet, {
+      header: 1,
+      range: 0,
+      blankrows: false,
+      defval: "",
+    })[0] || [];
+
+    const normalizedHeaderRow = headerRow.map((value) => String(value || "").trim());
+    const invalidHeaders = normalizedHeaderRow.filter(
+      (header) => header && !expectedHeaders.includes(header)
+    );
+    const missingHeaders = expectedHeaders.filter(
+      (header) => !normalizedHeaderRow.includes(header)
+    );
+
+    if (invalidHeaders.length > 0 || missingHeaders.length > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Invalid sheet format.",
+        invalidFieldNames: invalidHeaders,
+        missingFieldNames: missingHeaders,
+        expectedFormat: expectedHeaders,
+      });
+    }
+
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+    if (!Array.isArray(rows) || rows.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "No records found in sheet.",
+      });
+    }
+
+    const normalize = (value) => String(value || "").trim();
+    const normalizeLower = (value) => normalize(value).toLowerCase();
+
+    const prepared = [];
+    const skipped = [];
+    const namesInFile = new Set();
+
+    for (let index = 0; index < rows.length; index += 1) {
+      const row = rows[index];
+      const excelRow = index + 2;
+
+      const rawName = row.Name;
+      const rawType = row.Type;
+      const rawContact = row["Contact number"];
+      const rawWebsite = row.Website;
+      const rawEmail = row.Email;
+      const rawDescription = row.Description;
+
+      const name = CapitalizeFirstLetter(normalize(rawName));
+      const type = CapitalizeFirstLetter(normalize(rawType));
+      const contactNumber = normalize(rawContact);
+      const website = normalize(rawWebsite);
+      const email = normalize(rawEmail);
+      const description = CapitalizeFirstLetter(normalize(rawDescription));
+
+      if (!name || !type || !contactNumber || !website || !email || !description) {
+        skipped.push({
+          row: excelRow,
+          reason: "Missing required fields",
+        });
+        continue;
+      }
+
+      if (description.length > 350) {
+        skipped.push({
+          row: excelRow,
+          reason: "Description exceeds 350 characters",
+        });
+        continue;
+      }
+
+      const lowerName = normalizeLower(name);
+      if (namesInFile.has(lowerName)) {
+        skipped.push({
+          row: excelRow,
+          reason: "Duplicate BSO name in sheet",
+        });
+        continue;
+      }
+
+      namesInFile.add(lowerName);
+      prepared.push({
+        name,
+        type,
+        contactNumber,
+        website,
+        email,
+        description,
+      });
+    }
+
+    if (prepared.length === 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "No valid BSO records found in sheet.",
+        skipped,
+      });
+    }
+
+    const existing = await BSO.findAll({
+      where: {
+        name: {
+          [Op.in]: prepared.map((item) => item.name),
+        },
+      },
+      transaction,
+    });
+
+    const existingNameSet = new Set(existing.map((item) => normalizeLower(item.name)));
+    const toCreate = [];
+
+    prepared.forEach((item, idx) => {
+      if (existingNameSet.has(normalizeLower(item.name))) {
+        skipped.push({
+          row: idx + 2,
+          reason: "BSO already exists",
+        });
+      } else {
+        toCreate.push(item);
+      }
+    });
+
+    if (toCreate.length === 0) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "All BSOs in sheet already exist or are invalid.",
+        skipped,
+      });
+    }
+
+    const created = await BSO.bulkCreate(toCreate, { transaction });
+    await transaction.commit();
+
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "BSOs imported successfully.",
+      data: {
+        inserted: created.length,
+        skippedCount: skipped.length,
+        skipped,
+      },
+    });
+  } catch (error) {
+    await transaction.rollback();
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error",
+      error: error.message,
+    });
+  } finally {
+    if (fs.existsSync(uploadedFilePath)) {
+      fs.unlinkSync(uploadedFilePath);
+    }
   }
 };
 

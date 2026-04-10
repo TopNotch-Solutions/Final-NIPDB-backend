@@ -6,6 +6,13 @@ const bsosUploadMiddleware = require('../../middlewares/shared/bsosUploadMiddlew
 const bsoAdminRouter = Router();
 
 bsoAdminRouter.post('/create',  bsosUploadMiddleware.uploadSingle, bsoController.create);
+bsoAdminRouter.post(
+  '/create-from-sheet',
+  tokenAuthMiddleware,
+  checkAdmin,
+  bsosUploadMiddleware.uploadSheet,
+  bsoController.importFromSheet
+);
 
 bsoAdminRouter.get('/all',tokenAuthMiddleware, checkAdmin, bsoController.all);
 bsoAdminRouter.get('/all/download', tokenAuthMiddleware, checkAdmin, bsoController.allDownload);
