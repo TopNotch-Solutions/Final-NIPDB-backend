@@ -3,8 +3,6 @@ const bodyParser = require("body-parser");
 const sequelize = require("./config/dbConfig");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const fs = require("fs");
-const path = require("path");
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const http = require("http");
 const rateLimit = require("express-rate-limit");
@@ -15,7 +13,7 @@ const Notification = require("./models/notification");
 const Message = require("./models/directMessage");
 const AdminNotification = require("./models/adminNotifications");
 const Conversation = require("./models/conversation");
-const { Op, fn, col } = require("sequelize");
+const { Op } = require("sequelize");
 require("dotenv").config();
 
 const MsmeInformation = require("./models/msmeInformation");
@@ -42,6 +40,7 @@ const mobileImageUserRouter = require("./routes/userRoutes/mobileImageRoute");
 const opportunityAdminRouter = require("./routes/adminRoutes/opportunityRoute");
 const opportunityUserRouter = require("./routes/userRoutes/opportunityRoute");
 const directMessageUserRouter = require("./routes/userRoutes/directMessageRoute");
+const businessFeedbackUserRouter = require("./routes/userRoutes/businessFeedbackRoute");
 const userAdminRouter = require("./routes/adminRoutes/userRoute");
 const Admin = require("./models/admin");
 const NotificationHistory = require("./models/notificationHistory");
@@ -49,8 +48,6 @@ const { where } = require("sequelize");
 const CapitalizeFirstLetter = require("./utils/shared/capitalizeFirstLetter");
 const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
-const BusinessRating = require("./models/businessRating");
-const BusinessReview = require("./models/businessReview");
 
 const app = express();
 const server = http.createServer(app);
@@ -103,6 +100,7 @@ app.use("/user/mobile-images", mobileImageUserRouter);
 app.use("/opportunities/admin", opportunityAdminRouter);
 app.use("/opportunities/user", opportunityUserRouter);
 app.use("/directMessaging", directMessageUserRouter);
+app.use("/businessFeedback", businessFeedbackUserRouter);
 app.use("/system", userAdminRouter);
 app.use("/*", (req, res) => {
   res.status(404).json({
@@ -234,115 +232,6 @@ const onSocketEvent = (socket, eventName, handler) => {
   });
 };
 
-const buildBusinessRatingSummary = async (businessId) => {
-  const [averageRow, totalCount, groupedRows] = await Promise.all([
-    BusinessRating.findOne({
-      where: { businessId },
-      attributes: [[fn("AVG", col("score")), "averageScore"]],
-      raw: true,
-    }),
-    BusinessRating.count({ where: { businessId } }),
-    BusinessRating.findAll({
-      where: { businessId },
-      attributes: ["score", [fn("COUNT", col("id")), "count"]],
-      group: ["score"],
-      raw: true,
-    }),
-  ]);
-
-  const grouped = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  groupedRows.forEach((row) => {
-    grouped[Number(row.score)] = Number(row.count) || 0;
-  });
-
-  const stars = [1, 2, 3, 4, 5].map((star) => {
-    const count = grouped[star];
-    const percentage = totalCount > 0 ? Number(((count / totalCount) * 100).toFixed(2)) : 0;
-    return { star, count, percentage };
-  });
-
-  return {
-    businessId,
-    averageScore: totalCount > 0 ? Number((Number(averageRow?.averageScore || 0)).toFixed(2)) : 0,
-    totalRatings: totalCount,
-    stars,
-  };
-};
-
-const buildBusinessFeedbackSummary = async (businessId) => {
-  const [ratingSummary, latestReviews] = await Promise.all([
-    buildBusinessRatingSummary(businessId),
-    BusinessReview.findAll({
-      where: { businessId },
-      include: [
-        {
-          model: User,
-          attributes: ["id", "firstName", "lastName", "profileImage"],
-        },
-      ],
-      order: [["createdAt", "DESC"]],
-      limit: 20,
-    }),
-  ]);
-
-  return {
-    ...ratingSummary,
-    reviews: latestReviews.map((entry) => ({
-      id: entry.id,
-      userId: entry.userId,
-      businessId: entry.businessId,
-      review: entry.review,
-      reviewImage: entry.reviewImage,
-      createdAt: entry.createdAt,
-      updatedAt: entry.updatedAt,
-      user: entry.user
-        ? {
-            id: entry.user.id,
-            firstName: entry.user.firstName,
-            lastName: entry.user.lastName,
-            profileImage: entry.user.profileImage,
-          }
-        : null,
-    })),
-  };
-};
-
-const storeReviewImage = (reviewImage) => {
-  if (!reviewImage) return null;
-
-  const destination = path.join(process.cwd(), "public", "reviews");
-  if (!fs.existsSync(destination)) {
-    fs.mkdirSync(destination, { recursive: true });
-  }
-
-  // Same naming behavior as multer middleware:
-  // <fieldname>_<timestamp><ext>
-  const fieldName = reviewImage.fieldname || "review-image";
-  const originalName = reviewImage.originalname || "review-image.png";
-  const extension = path.extname(originalName) || ".png";
-  const filename = fieldName + "_" + Date.now() + extension;
-  const filePath = path.join(destination, filename);
-
-  let imageBuffer = null;
-  if (Buffer.isBuffer(reviewImage.buffer)) {
-    imageBuffer = reviewImage.buffer;
-  } else if (reviewImage?.type === "Buffer" && Array.isArray(reviewImage.data)) {
-    imageBuffer = Buffer.from(reviewImage.data);
-  } else if (typeof reviewImage === "string" && reviewImage.trim() !== "") {
-    const payload = reviewImage.includes(",")
-      ? reviewImage.substring(reviewImage.lastIndexOf(",") + 1).trim()
-      : reviewImage.trim();
-    imageBuffer = Buffer.from(payload, "base64");
-  }
-
-  if (!imageBuffer || imageBuffer.length === 0) {
-    throw new Error("Invalid review image payload.");
-  }
-
-  fs.writeFileSync(filePath, imageBuffer);
-  return `reviews/${filename}`;
-};
-
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
 
@@ -373,125 +262,6 @@ io.on("connection", (socket) => {
     removeBusinessByRole(id, role);
     console.log(`Removed ${role} for user ${id}`);
   });
-
-  onSocketEvent(
-    socket,
-    "submit-business-feedback",
-    async ({ userId, businessId, score, review, reviewImage } = {}, ack) => {
-      if (!userId || !businessId || !score || !review) {
-        ack.failure("userId, businessId, score and review are required.");
-        return;
-      }
-
-      const numericScore = Number(score);
-      if (!Number.isInteger(numericScore) || numericScore < 1 || numericScore > 5) {
-        ack.failure("score must be an integer between 1 and 5.");
-        return;
-      }
-
-      const sanitizedReview = String(review).trim();
-      if (!sanitizedReview) {
-        ack.failure("review cannot be empty.");
-        return;
-      }
-
-      const [user, business] = await Promise.all([
-        User.findOne({
-          where: { id: userId },
-          attributes: ["id", "firstName", "lastName", "profileImage"],
-        }),
-        MsmeInformation.findOne({ where: { id: businessId } }),
-      ]);
-
-      if (!user || !business) {
-        ack.failure("User or business not found.");
-        return;
-      }
-
-      // 1 rating per user per business (UPSERT behavior)
-      const existingRating = await BusinessRating.findOne({
-        where: { userId, businessId },
-      });
-
-      if (existingRating) {
-        await existingRating.update({ score: numericScore });
-      } else {
-        await BusinessRating.create({
-          userId,
-          businessId,
-          score: numericScore,
-        });
-      }
-
-      // Review history is one-to-many (new entry each submission)
-      const storedReviewImage = reviewImage ? storeReviewImage(reviewImage) : null;
-
-      await BusinessReview.create({
-        userId,
-        businessId,
-        review: sanitizedReview,
-        rating: numericScore,
-        reviewImage: storedReviewImage,
-      });
-
-      const summary = await buildBusinessFeedbackSummary(businessId);
-
-      io.emit("business-feedback-updated", { data: summary });
-      ack.success({
-        message: "Business feedback submitted successfully.",
-        data: summary,
-      });
-    }
-  );
-
-  onSocketEvent(
-    socket,
-    "get-business-feedback",
-    async ({ businessId, page = 1, limit = 20 } = {}, ack) => {
-      if (!businessId) {
-        ack.failure("businessId is required.");
-        return;
-      }
-
-      const business = await MsmeInformation.findOne({ where: { id: businessId } });
-      if (!business) {
-        ack.failure("Business not found.");
-        return;
-      }
-
-      const numericPage = Number(page) > 0 ? Number(page) : 1;
-      const numericLimit = Number(limit) > 0 ? Number(limit) : 20;
-      const offset = (numericPage - 1) * numericLimit;
-
-      const ratingSummary = await buildBusinessRatingSummary(businessId);
-      const { count, rows } = await BusinessReview.findAndCountAll({
-        where: { businessId },
-        include: [
-          {
-            model: User,
-            attributes: ["id", "firstName", "lastName", "profileImage"],
-          },
-        ],
-        order: [["createdAt", "DESC"]],
-        limit: numericLimit,
-        offset,
-      });
-
-      ack.success({
-        message: "Business feedback retrieved successfully.",
-        data: {
-          ...ratingSummary,
-          reviews: rows,
-        },
-        pagination: {
-          totalRecords: count,
-          currentPage: numericPage,
-          totalPages: Math.ceil(count / numericLimit),
-          pageSize: numericLimit,
-        },
-      });
-    }
-  );
 
   socket.on(
     "sendToSingleNotificationAdmin",
