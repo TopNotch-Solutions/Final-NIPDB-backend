@@ -315,29 +315,31 @@ const storeReviewImage = (reviewImage) => {
     fs.mkdirSync(destination, { recursive: true });
   }
 
-  const imageString = String(reviewImage).trim();
-  const dataUrlMatch = imageString.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
-
-  let base64Data;
-  let extension;
-
-  if (dataUrlMatch) {
-    extension = "." + dataUrlMatch[1].toLowerCase().replace("jpeg", "jpg");
-    base64Data = dataUrlMatch[2];
-  } else {
-    // Default fallback for raw base64 payloads without data URL prefix.
-    extension = ".png";
-    base64Data = imageString;
-  }
-
-  if (!base64Data) {
-    throw new Error("Invalid review image data.");
-  }
-
-  const filename = "review-image_" + Date.now() + extension;
+  // Same naming behavior as multer middleware:
+  // <fieldname>_<timestamp><ext>
+  const fieldName = reviewImage.fieldname || "review-image";
+  const originalName = reviewImage.originalname || "review-image.png";
+  const extension = path.extname(originalName) || ".png";
+  const filename = fieldName + "_" + Date.now() + extension;
   const filePath = path.join(destination, filename);
 
-  fs.writeFileSync(filePath, base64Data, "base64");
+  let imageBuffer = null;
+  if (Buffer.isBuffer(reviewImage.buffer)) {
+    imageBuffer = reviewImage.buffer;
+  } else if (reviewImage?.type === "Buffer" && Array.isArray(reviewImage.data)) {
+    imageBuffer = Buffer.from(reviewImage.data);
+  } else if (typeof reviewImage === "string" && reviewImage.trim() !== "") {
+    const payload = reviewImage.includes(",")
+      ? reviewImage.substring(reviewImage.lastIndexOf(",") + 1).trim()
+      : reviewImage.trim();
+    imageBuffer = Buffer.from(payload, "base64");
+  }
+
+  if (!imageBuffer || imageBuffer.length === 0) {
+    throw new Error("Invalid review image payload.");
+  }
+
+  fs.writeFileSync(filePath, imageBuffer);
   return `reviews/${filename}`;
 };
 
