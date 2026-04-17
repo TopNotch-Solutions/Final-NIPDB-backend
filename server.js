@@ -310,28 +310,32 @@ const buildBusinessFeedbackSummary = async (businessId) => {
 const storeReviewImage = (reviewImage) => {
   if (!reviewImage) return null;
 
-  const reviewsDirectory = path.join(process.cwd(), "public", "reviews");
-  if (!fs.existsSync(reviewsDirectory)) {
-    fs.mkdirSync(reviewsDirectory, { recursive: true });
+  const destination = path.join(process.cwd(), "public", "reviews");
+  if (!fs.existsSync(destination)) {
+    fs.mkdirSync(destination, { recursive: true });
   }
 
   const imageString = String(reviewImage).trim();
   const dataUrlMatch = imageString.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
 
-  let extension = "png";
-  let base64Data = imageString;
+  let base64Data;
+  let extension;
 
   if (dataUrlMatch) {
-    extension = dataUrlMatch[1].toLowerCase().replace("jpeg", "jpg");
+    extension = "." + dataUrlMatch[1].toLowerCase().replace("jpeg", "jpg");
     base64Data = dataUrlMatch[2];
+  } else {
+    // Default fallback for raw base64 payloads without data URL prefix.
+    extension = ".png";
+    base64Data = imageString;
   }
 
   if (!base64Data) {
     throw new Error("Invalid review image data.");
   }
 
-  const filename = `review_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
-  const filePath = path.join(reviewsDirectory, filename);
+  const filename = "review-image_" + Date.now() + extension;
+  const filePath = path.join(destination, filename);
 
   fs.writeFileSync(filePath, base64Data, "base64");
   return `reviews/${filename}`;
