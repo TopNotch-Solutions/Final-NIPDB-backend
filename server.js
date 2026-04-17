@@ -3,6 +3,8 @@ const bodyParser = require("body-parser");
 const sequelize = require("./config/dbConfig");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const fs = require("fs");
+const path = require("path");
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const http = require("http");
 const rateLimit = require("express-rate-limit");
@@ -267,6 +269,74 @@ const buildBusinessRatingSummary = async (businessId) => {
   };
 };
 
+const buildBusinessFeedbackSummary = async (businessId) => {
+  const [ratingSummary, latestReviews] = await Promise.all([
+    buildBusinessRatingSummary(businessId),
+    BusinessReview.findAll({
+      where: { businessId },
+      include: [
+        {
+          model: User,
+          attributes: ["id", "firstName", "lastName", "profileImage"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      limit: 20,
+    }),
+  ]);
+
+  return {
+    ...ratingSummary,
+    reviews: latestReviews.map((entry) => ({
+      id: entry.id,
+      userId: entry.userId,
+      businessId: entry.businessId,
+      review: entry.review,
+      reviewImage: entry.reviewImage,
+      createdAt: entry.createdAt,
+      updatedAt: entry.updatedAt,
+      user: entry.user
+        ? {
+            id: entry.user.id,
+            firstName: entry.user.firstName,
+            lastName: entry.user.lastName,
+            profileImage: entry.user.profileImage,
+          }
+        : null,
+    })),
+  };
+};
+
+const storeReviewImage = (reviewImage) => {
+  if (!reviewImage) return null;
+
+  const reviewsDirectory = path.join(process.cwd(), "public", "reviews");
+  if (!fs.existsSync(reviewsDirectory)) {
+    fs.mkdirSync(reviewsDirectory, { recursive: true });
+  }
+
+  const imageString = String(reviewImage).trim();
+  const dataUrlMatch = imageString.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+
+  let extension = "png";
+  let base64Data = imageString;
+
+  if (dataUrlMatch) {
+    extension = dataUrlMatch[1].toLowerCase().replace("jpeg", "jpg");
+    base64Data = dataUrlMatch[2];
+  }
+
+  if (!base64Data) {
+    throw new Error("Invalid review image data.");
+  }
+
+  const filename = `review_${Date.now()}_${Math.floor(Math.random() * 100000)}.${extension}`;
+  const filePath = path.join(reviewsDirectory, filename);
+
+  fs.writeFileSync(filePath, base64Data, "base64");
+  return `reviews/${filename}`;
+};
+
 io.on("connection", (socket) => {
   console.log("A user connected", socket.id);
 
@@ -300,10 +370,10 @@ io.on("connection", (socket) => {
 
   onSocketEvent(
     socket,
-    "upsert-business-rating",
-    async ({ userId, businessId, score } = {}, ack) => {
-      if (!userId || !businessId || !score) {
-        ack.failure("userId, businessId and score are required.");
+    "submit-business-feedback",
+    async ({ userId, businessId, score, review, reviewImage } = {}, ack) => {
+      if (!userId || !businessId || !score || !review) {
+        ack.failure("userId, businessId, score and review are required.");
         return;
       }
 
@@ -313,8 +383,17 @@ io.on("connection", (socket) => {
         return;
       }
 
+      const sanitizedReview = String(review).trim();
+      if (!sanitizedReview) {
+        ack.failure("review cannot be empty.");
+        return;
+      }
+
       const [user, business] = await Promise.all([
-        User.findOne({ where: { id: userId } }),
+        User.findOne({
+          where: { id: userId },
+          attributes: ["id", "firstName", "lastName", "profileImage"],
+        }),
         MsmeInformation.findOne({ where: { id: businessId } }),
       ]);
 
@@ -323,12 +402,13 @@ io.on("connection", (socket) => {
         return;
       }
 
-      const existing = await BusinessRating.findOne({
+      // 1 rating per user per business (UPSERT behavior)
+      const existingRating = await BusinessRating.findOne({
         where: { userId, businessId },
       });
 
-      if (existing) {
-        await existing.update({ score: numericScore });
+      if (existingRating) {
+        await existingRating.update({ score: numericScore });
       } else {
         await BusinessRating.create({
           userId,
@@ -337,78 +417,22 @@ io.on("connection", (socket) => {
         });
       }
 
-      const summary = await buildBusinessRatingSummary(businessId);
+      // Review history is one-to-many (new entry each submission)
+      const storedReviewImage = reviewImage ? storeReviewImage(reviewImage) : null;
 
-      io.emit("business-rating-summary-updated", { data: summary });
-      ack.success({
-        message: "Business rating saved successfully.",
-        data: summary,
-      });
-    }
-  );
-
-  onSocketEvent(
-    socket,
-    "create-business-review",
-    async ({ businessId, review } = {}, ack) => {
-      if (!businessId || !review) {
-        ack.failure("businessId and review are required.");
-        return;
-      }
-
-      const sanitizedReview = String(review).trim();
-      if (!sanitizedReview) {
-        ack.failure("review cannot be empty.");
-        return;
-      }
-
-      const business = await MsmeInformation.findOne({ where: { id: businessId } });
-
-      if (!business) {
-        ack.failure("Business not found.");
-        return;
-      }
-
-      const newReview = await BusinessReview.create({
+      await BusinessReview.create({
+        userId,
         businessId,
         review: sanitizedReview,
+        rating: numericScore,
+        reviewImage: storedReviewImage,
       });
 
-      const reviewPayload = {
-        id: newReview.id,
-        isAnonymous: true,
-        businessId,
-        review: newReview.review,
-        createdAt: newReview.createdAt,
-        updatedAt: newReview.updatedAt,
-      };
+      const summary = await buildBusinessFeedbackSummary(businessId);
 
-      io.emit("business-review-created", { data: reviewPayload });
+      io.emit("business-feedback-updated", { data: summary });
       ack.success({
-        message: "Business review added successfully.",
-        data: reviewPayload,
-      });
-    }
-  );
-
-  onSocketEvent(
-    socket,
-    "get-business-rating-summary",
-    async ({ businessId } = {}, ack) => {
-      if (!businessId) {
-        ack.failure("businessId is required.");
-        return;
-      }
-
-      const business = await MsmeInformation.findOne({ where: { id: businessId } });
-      if (!business) {
-        ack.failure("Business not found.");
-        return;
-      }
-
-      const summary = await buildBusinessRatingSummary(businessId);
-      ack.success({
-        message: "Business rating summary retrieved successfully.",
+        message: "Business feedback submitted successfully.",
         data: summary,
       });
     }
@@ -416,10 +440,16 @@ io.on("connection", (socket) => {
 
   onSocketEvent(
     socket,
-    "get-business-reviews",
+    "get-business-feedback",
     async ({ businessId, page = 1, limit = 20 } = {}, ack) => {
       if (!businessId) {
         ack.failure("businessId is required.");
+        return;
+      }
+
+      const business = await MsmeInformation.findOne({ where: { id: businessId } });
+      if (!business) {
+        ack.failure("Business not found.");
         return;
       }
 
@@ -427,16 +457,26 @@ io.on("connection", (socket) => {
       const numericLimit = Number(limit) > 0 ? Number(limit) : 20;
       const offset = (numericPage - 1) * numericLimit;
 
+      const ratingSummary = await buildBusinessRatingSummary(businessId);
       const { count, rows } = await BusinessReview.findAndCountAll({
         where: { businessId },
+        include: [
+          {
+            model: User,
+            attributes: ["id", "firstName", "lastName", "profileImage"],
+          },
+        ],
         order: [["createdAt", "DESC"]],
         limit: numericLimit,
         offset,
       });
 
       ack.success({
-        message: "Business reviews retrieved successfully.",
-        data: rows,
+        message: "Business feedback retrieved successfully.",
+        data: {
+          ...ratingSummary,
+          reviews: rows,
+        },
         pagination: {
           totalRecords: count,
           currentPage: numericPage,
