@@ -34,6 +34,18 @@ const MsmeAdditionalInfo = sequelize.define(
             type: DataTypes.STRING, 
             allowNull: true,
           },
+          image4: {
+            type: DataTypes.STRING, 
+            allowNull: true,
+          },
+          image5: {
+            type: DataTypes.STRING, 
+            allowNull: true,
+          },
+          image6: {
+            type: DataTypes.STRING, 
+            allowNull: true,
+          },
     },{
         timestamps: false 
       }

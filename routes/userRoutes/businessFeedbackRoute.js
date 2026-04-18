@@ -16,8 +16,6 @@ businessFeedbackUserRouter.post(
 
 businessFeedbackUserRouter.get(
   "/:businessId",
-  tokenAuthMiddleware,
-  checkUser,
   businessFeedbackController.getBusinessFeedback
 );
 
