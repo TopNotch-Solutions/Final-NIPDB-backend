@@ -1738,6 +1738,9 @@ const updateBusinessImage = async (req, res, imageField) => {
 exports.updateImage1 = (req, res) => updateBusinessImage(req, res, "image1");
 exports.updateImage2 = (req, res) => updateBusinessImage(req, res, "image2");
 exports.updateImage3 = (req, res) => updateBusinessImage(req, res, "image3");
+exports.updateImage4 = (req, res) => updateBusinessImage(req, res, "image4");
+exports.updateImage5 = (req, res) => updateBusinessImage(req, res, "image5");
+exports.updateImage6 = (req, res) => updateBusinessImage(req, res, "image6");
 
 exports.businessHours = async (req, res) => {
    const userId = req.user.id;

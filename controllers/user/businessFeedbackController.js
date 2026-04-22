@@ -1,28 +1,40 @@
 const { fn, col } = require("sequelize");
+const crypto = require("crypto");
 const User = require("../../models/user");
 const MsmeInformation = require("../../models/msmeInformation");
 const BusinessRating = require("../../models/businessRating");
 const BusinessReview = require("../../models/businessReview");
 
+const buildAnonymousAlias = (req) => {
+  const providedAnonymousId = req.header("x-anonymous-id");
+  const source =
+    (providedAnonymousId && String(providedAnonymousId).trim()) ||
+    `${req.ip || ""}|${req.header("user-agent") || ""}`;
+
+  const hash = crypto.createHash("sha256").update(source).digest("hex");
+  const suffix = ((parseInt(hash.slice(0, 8), 16) % 1000) + 1).toString().padStart(3, "0");
+  return `Anonymous${suffix}`;
+};
+
 const buildBusinessRatingSummary = async (businessId) => {
   const [averageRow, totalCount, groupedRows] = await Promise.all([
-    BusinessRating.findOne({
+    BusinessReview.findOne({
       where: { businessId },
-      attributes: [[fn("AVG", col("score")), "averageScore"]],
+      attributes: [[fn("AVG", col("rating")), "averageScore"]],
       raw: true,
     }),
-    BusinessRating.count({ where: { businessId } }),
-    BusinessRating.findAll({
+    BusinessReview.count({ where: { businessId } }),
+    BusinessReview.findAll({
       where: { businessId },
-      attributes: ["score", [fn("COUNT", col("id")), "count"]],
-      group: ["score"],
+      attributes: ["rating", [fn("COUNT", col("id")), "count"]],
+      group: ["rating"],
       raw: true,
     }),
   ]);
 
   const grouped = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
   groupedRows.forEach((row) => {
-    grouped[Number(row.score)] = Number(row.count) || 0;
+    grouped[Number(row.rating)] = Number(row.count) || 0;
   });
 
   const stars = [1, 2, 3, 4, 5].map((star) => {
@@ -41,14 +53,14 @@ const buildBusinessRatingSummary = async (businessId) => {
 
 exports.submitBusinessFeedback = async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user?.id || null;
     const { businessId, score, review } = req.body;
     const reviewImage = req.file ? `reviews/${req.file.filename}` : null;
 
-    if (!userId || !businessId || !score || !review) {
+    if (!businessId || !score || !review) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "userId, businessId, score and review are required.",
+        message: "businessId, score and review are required.",
       });
     }
 
@@ -68,33 +80,41 @@ exports.submitBusinessFeedback = async (req, res) => {
       });
     }
 
-    const [user, business] = await Promise.all([
-      User.findOne({
-        where: { id: userId },
-        attributes: ["id", "firstName", "lastName", "profileImage"],
-      }),
-      MsmeInformation.findOne({ where: { id: businessId } }),
-    ]);
+    const business = await MsmeInformation.findOne({ where: { id: businessId } });
 
-    if (!user || !business) {
+    if (!business) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "User or business not found.",
+        message: "Business not found.",
       });
     }
 
-    const existingRating = await BusinessRating.findOne({
-      where: { userId, businessId },
-    });
-
-    if (existingRating) {
-      await existingRating.update({ score: numericScore });
-    } else {
-      await BusinessRating.create({
-        userId,
-        businessId,
-        score: numericScore,
+    if (userId) {
+      const user = await User.findOne({
+        where: { id: userId },
+        attributes: ["id"],
       });
+
+      if (!user) {
+        return res.status(404).json({
+          status: "FAILURE",
+          message: "User not found.",
+        });
+      }
+
+      const existingRating = await BusinessRating.findOne({
+        where: { userId, businessId },
+      });
+
+      if (existingRating) {
+        await existingRating.update({ score: numericScore });
+      } else {
+        await BusinessRating.create({
+          userId,
+          businessId,
+          score: numericScore,
+        });
+      }
     }
 
     await BusinessReview.create({
@@ -103,6 +123,7 @@ exports.submitBusinessFeedback = async (req, res) => {
       review: sanitizedReview,
       rating: numericScore,
       reviewImage,
+      anonymousAlias: userId ? null : buildAnonymousAlias(req),
     });
 
     const ratingSummary = await buildBusinessRatingSummary(businessId);
@@ -156,12 +177,25 @@ exports.getBusinessFeedback = async (req, res) => {
       offset,
     });
 
+    const reviews = rows.map((entry) => {
+      const review = entry.toJSON();
+      if (!review.User) {
+        review.User = {
+          id: null,
+          firstName: review.anonymousAlias || "Anonymous",
+          lastName: "",
+          profileImage: null,
+        };
+      }
+      return review;
+    });
+
     return res.status(200).json({
       status: "SUCCESS",
       message: "Business feedback retrieved successfully.",
       data: {
         ...ratingSummary,
-        reviews: rows,
+        reviews,
       },
       pagination: {
         totalRecords: count,
