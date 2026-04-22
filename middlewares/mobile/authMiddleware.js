@@ -141,36 +141,4 @@ module.exports.checkAppUser = (req, res, next) => {
   }
 };
 
-module.exports.optionalUserAuthMiddleware = (req, res, next) => {
-  const authHeader = req.header("x-access-token");
-  if (!authHeader) {
-    return next();
-  }
 
-  const token = authHeader.split(" ")[1];
-  if (!token) {
-    return res.status(401).json({
-      status: "FAILURE",
-      message: "Access denied. No token provided.",
-    });
-  }
-
-  try {
-    const secretKey = process.env.MOBILE_TOKEN;
-    const decoded = jwt.verify(token, secretKey);
-    if (decoded.role !== "User") {
-      return res.status(403).json({
-        status: "FAILURE",
-        message: "Access denied. User does not have access to this route.",
-      });
-    }
-
-    req.user = decoded;
-    return next();
-  } catch (err) {
-    return res.status(401).json({
-      status: "FAILURE",
-      message: "Invalid token.",
-    });
-  }
-};
