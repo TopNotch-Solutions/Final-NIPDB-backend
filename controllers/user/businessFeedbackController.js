@@ -53,7 +53,12 @@ const buildBusinessRatingSummary = async (businessId) => {
 
 exports.submitBusinessFeedback = async (req, res) => {
   try {
-    const userId = req.user?.id || null;
+    const userIdFromBody = req.body?.userId ?? req.body?.useId ?? null;
+    const parsedUserIdFromBody =
+      userIdFromBody !== null && userIdFromBody !== undefined && String(userIdFromBody).trim() !== ""
+        ? Number(userIdFromBody)
+        : null;
+    const userId = req.user?.id || (Number.isInteger(parsedUserIdFromBody) ? parsedUserIdFromBody : null);
     const { businessId, score, review } = req.body;
     const reviewImage = req.file ? `reviews/${req.file.filename}` : null;
 
@@ -134,6 +139,18 @@ exports.submitBusinessFeedback = async (req, res) => {
       data: ratingSummary,
     });
   } catch (error) {
+    if (
+      error?.name === "SequelizeValidationError" &&
+      Array.isArray(error?.errors) &&
+      error.errors.some((entry) => entry?.path === "userId" && entry?.type === "notNull Violation")
+    ) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message:
+          "Anonymous feedback is not enabled in this environment yet. Provide a valid userId in the request body.",
+      });
+    }
+
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
