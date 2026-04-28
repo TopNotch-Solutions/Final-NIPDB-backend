@@ -14,7 +14,8 @@ const BusinessReview = sequelize.define(
     },
     userId: {
       type: DataTypes.BIGINT,
-      allowNull: false,
+      allowNull: true,
+      defaultValue: null,
     },
     businessId: {
       type: DataTypes.BIGINT,

@@ -1,22 +1,25 @@
 const { fn, col } = require("sequelize");
+const sequelize = require("../../config/dbConfig");
 const User = require("../../models/user");
 const MsmeInformation = require("../../models/msmeInformation");
 const BusinessRating = require("../../models/businessRating");
 const BusinessReview = require("../../models/businessReview");
 
-const buildBusinessRatingSummary = async (businessId) => {
+const buildBusinessRatingSummary = async (businessId, transaction = null) => {
   const [averageRow, totalCount, groupedRows] = await Promise.all([
     BusinessRating.findOne({
       where: { businessId },
       attributes: [[fn("AVG", col("score")), "averageScore"]],
       raw: true,
+      transaction,
     }),
-    BusinessRating.count({ where: { businessId } }),
+    BusinessRating.count({ where: { businessId }, transaction }),
     BusinessRating.findAll({
       where: { businessId },
       attributes: ["score", [fn("COUNT", col("id")), "count"]],
       group: ["score"],
       raw: true,
+      transaction,
     }),
   ]);
 
@@ -40,15 +43,15 @@ const buildBusinessRatingSummary = async (businessId) => {
 };
 
 exports.submitBusinessFeedback = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
-    const userId = req.user.id;
-    const { businessId, score, review } = req.body;
+    const { userId = null, businessId, score, review } = req.body;
     const reviewImage = req.file ? `reviews/${req.file.filename}` : null;
 
-    if (!userId || !businessId || !score || !review) {
+    if (!businessId || !score || !review) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "userId, businessId, score and review are required.",
+        message: "businessId, score and review are required.",
       });
     }
 
@@ -69,32 +72,50 @@ exports.submitBusinessFeedback = async (req, res) => {
     }
 
     const [user, business] = await Promise.all([
-      User.findOne({
-        where: { id: userId },
-        attributes: ["id", "firstName", "lastName", "profileImage"],
-      }),
-      MsmeInformation.findOne({ where: { id: businessId } }),
+      userId
+        ? User.findOne({
+            where: { id: userId },
+            attributes: ["id", "firstName", "lastName", "profileImage"],
+            transaction,
+          })
+        : null,
+      MsmeInformation.findOne({ where: { id: businessId }, transaction }),
     ]);
 
-    if (!user || !business) {
+    if (!business) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "User or business not found.",
+        message: "Business not found.",
+      });
+    }
+    if (userId && !user) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "User not found.",
       });
     }
 
-    const existingRating = await BusinessRating.findOne({
-      where: { userId, businessId },
-    });
+    if (userId) {
+      const existingRating = await BusinessRating.findOne({
+        where: { userId, businessId },
+        transaction,
+      });
 
-    if (existingRating) {
-      await existingRating.update({ score: numericScore });
+      if (existingRating) {
+        await existingRating.update({ score: numericScore }, { transaction });
+      } else {
+        await BusinessRating.create({
+          userId,
+          businessId,
+          score: numericScore,
+        }, { transaction });
+      }
     } else {
       await BusinessRating.create({
-        userId,
+        userId: null,
         businessId,
         score: numericScore,
-      });
+      }, { transaction });
     }
 
     await BusinessReview.create({
@@ -103,9 +124,10 @@ exports.submitBusinessFeedback = async (req, res) => {
       review: sanitizedReview,
       rating: numericScore,
       reviewImage,
-    });
+    }, { transaction });
 
-    const ratingSummary = await buildBusinessRatingSummary(businessId);
+    const ratingSummary = await buildBusinessRatingSummary(businessId, transaction);
+    await transaction.commit();
 
     return res.status(201).json({
       status: "SUCCESS",
@@ -113,6 +135,7 @@ exports.submitBusinessFeedback = async (req, res) => {
       data: ratingSummary,
     });
   } catch (error) {
+    await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
@@ -121,6 +144,7 @@ exports.submitBusinessFeedback = async (req, res) => {
 };
 
 exports.getBusinessFeedback = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const { businessId } = req.params;
     const page = Number(req.query.page) > 0 ? Number(req.query.page) : 1;
@@ -134,27 +158,32 @@ exports.getBusinessFeedback = async (req, res) => {
       });
     }
 
-    const business = await MsmeInformation.findOne({ where: { id: businessId } });
+    const business = await MsmeInformation.findOne({ where: { id: businessId }, transaction });
     if (!business) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "Business not found.",
       });
     }
 
-    const ratingSummary = await buildBusinessRatingSummary(businessId);
+    const ratingSummary = await buildBusinessRatingSummary(businessId, transaction);
     const { count, rows } = await BusinessReview.findAndCountAll({
       where: { businessId },
       include: [
         {
           model: User,
           attributes: ["id", "firstName", "lastName", "profileImage"],
+          required: false,
         },
       ],
       order: [["createdAt", "DESC"]],
       limit,
       offset,
+      transaction,
     });
+
+    await transaction.commit();
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -171,6 +200,7 @@ exports.getBusinessFeedback = async (req, res) => {
       },
     });
   } catch (error) {
+    await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
