@@ -1,52 +1,52 @@
 const BSO = require("../../models/bso");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 const path = require("path");
-const fs = require('fs');
+const fs = require("fs");
 const sequelize = require("../../config/dbConfig");
 const { Op } = require("sequelize");
 const XLSX = require("xlsx");
 
 exports.create = async (req, res) => {
   let { name, type, contactNumber, website, email, description } = req.body;
-    const logo = req.file ? req.file.filename : null;
+  const logo = req.file ? req.file.filename : null;
 
-    if (!name) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO name is required.",
-      });
-    }
-    if (!type) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO type is required.",
-      });
-    }
-    if (!contactNumber) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO contact number is required.",
-      });
-    }
-    if (!website) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Website is required.",
-      });
-    }
-    
-    if (!email) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Email is required.",
-      });
-    }
-    if (!description) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Description is required.",
-      });
-    }
+  if (!name) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO name is required.",
+    });
+  }
+  if (!type) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO type is required.",
+    });
+  }
+  if (!contactNumber) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO contact number is required.",
+    });
+  }
+  if (!website) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Website is required.",
+    });
+  }
+
+  if (!email) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Email is required.",
+    });
+  }
+  if (!description) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Description is required.",
+    });
+  }
   const transaction = await sequelize.transaction();
 
   try {
@@ -78,7 +78,7 @@ exports.create = async (req, res) => {
         description,
         logo,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -88,10 +88,9 @@ exports.create = async (req, res) => {
       message: "BSO successfully created!",
       data: newBso,
     });
-
   } catch (error) {
     await transaction.rollback();
-     console.error("Creating BSO error:", error);
+    console.error("Creating BSO error:", error);
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -102,7 +101,12 @@ exports.create = async (req, res) => {
 
 exports.all = async (req, res) => {
   try {
-    let { page = 1, limit = 20, sortBy = "createdAt", order = "DESC" } = req.query;
+    let {
+      page = 1,
+      limit = 20,
+      sortBy = "createdAt",
+      order = "DESC",
+    } = req.query;
 
     page = parseInt(page);
     limit = parseInt(limit);
@@ -129,7 +133,6 @@ exports.all = async (req, res) => {
         pageSize: limit,
       },
     });
-
   } catch (error) {
     return res.status(500).json({
       status: "FAILURE",
@@ -141,7 +144,12 @@ exports.all = async (req, res) => {
 
 exports.allDownload = async (req, res) => {
   try {
-    let { page = 1, limit = 20, sortBy = "createdAt", order = "DESC" } = req.query;
+    let {
+      page = 1,
+      limit = 20,
+      sortBy = "createdAt",
+      order = "DESC",
+    } = req.query;
 
     page = parseInt(page);
     limit = parseInt(limit);
@@ -169,7 +177,6 @@ exports.allDownload = async (req, res) => {
         pageSize: limit,
       },
     });
-
   } catch (error) {
     return res.status(500).json({
       status: "FAILURE",
@@ -181,21 +188,20 @@ exports.allDownload = async (req, res) => {
 
 exports.single = async (req, res) => {
   const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO ID is required.",
-      });
-    }
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO ID is required.",
+    });
+  }
   try {
-    
     const bso = await BSO.findByPk(id);
 
     if (!bso) {
       return res.status(200).json({
         status: "FAILURE",
         message: "BSO not found.",
-        data: []
+        data: [],
       });
     }
 
@@ -204,7 +210,6 @@ exports.single = async (req, res) => {
       message: "BSO successfully retrieved!",
       data: bso,
     });
-
   } catch (error) {
     return res.status(500).json({
       status: "FAILURE",
@@ -216,56 +221,55 @@ exports.single = async (req, res) => {
 
 exports.update = async (req, res) => {
   const { id } = req.params;
-let { name, type, contactNumber, website, email, description } = req.body;
-    const newLogo = req.file ? req.file.filename : null;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "User ID is required.",
-      });
-    }
+  let { name, type, contactNumber, website, email, description } = req.body;
+  const newLogo = req.file ? req.file.filename : null;
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "User ID is required.",
+    });
+  }
 
-    if (!name) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO name is required.",
-      });
-    }
-    if (!type) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO type is required.",
-      });
-    }
-    if (!contactNumber) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO contact number is required.",
-      });
-    }
-    if (!website) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Website is required.",
-      });
-    }
-    
-    if (!email) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Email is required.",
-      });
-    }
-    if (!description) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Description is required.",
-      });
-    }
+  if (!name) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO name is required.",
+    });
+  }
+  if (!type) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO type is required.",
+    });
+  }
+  if (!contactNumber) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO contact number is required.",
+    });
+  }
+  if (!website) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Website is required.",
+    });
+  }
+
+  if (!email) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Email is required.",
+    });
+  }
+  if (!description) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Description is required.",
+    });
+  }
   const transaction = await sequelize.transaction();
 
   try {
-    
     const bso = await BSO.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -299,10 +303,12 @@ let { name, type, contactNumber, website, email, description } = req.body;
     }
 
     if (newLogo) {
-      const oldLogoPath = path.join(process.cwd(), "public/bsos", bso.logo);
+      if (bso.logo) {
+        const oldLogoPath = path.join(process.cwd(), "public/bsos", bso.logo);
 
-      if (bso.logo && fs.existsSync(oldLogoPath)) {
-        fs.unlinkSync(oldLogoPath);
+        if (fs.existsSync(oldLogoPath)) {
+          fs.unlinkSync(oldLogoPath);
+        }
       }
 
       bso.logo = newLogo;
@@ -318,7 +324,7 @@ let { name, type, contactNumber, website, email, description } = req.body;
         description: description ?? bso.description,
         logo: bso.logo,
       },
-      { transaction }
+      { transaction },
     );
 
     await transaction.commit();
@@ -328,16 +334,19 @@ let { name, type, contactNumber, website, email, description } = req.body;
       message: "BSO successfully updated!",
       data: bso,
     });
-
   } catch (error) {
     await transaction.rollback();
     if (req.file) {
-      const failedPath = path.join(process.cwd(), "public/bsos", req.file.filename);
+      const failedPath = path.join(
+        process.cwd(),
+        "public/bsos",
+        req.file.filename,
+      );
       if (fs.existsSync(failedPath)) {
         fs.unlinkSync(failedPath);
       }
     }
-    console.log("Here is the error: ",error)
+    console.log("Here is the error: ", error);
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -355,7 +364,6 @@ exports.totalBsos = async (req, res) => {
       message: "BSO count successfully retrieved!",
       data: totalBso || 0,
     });
-
   } catch (error) {
     return res.status(500).json({
       status: "FAILURE",
@@ -366,19 +374,18 @@ exports.totalBsos = async (req, res) => {
 };
 
 exports.delete = async (req, res) => {
-   const { id } = req.params;
+  const { id } = req.params;
 
-    if (!id) {
-      await transaction.rollback();
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "BSO ID is required.",
-      });
-    }
+  if (!id) {
+    await transaction.rollback();
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "BSO ID is required.",
+    });
+  }
   const transaction = await sequelize.transaction();
 
   try {
-   
     const bso = await BSO.findByPk(id, {
       transaction,
       lock: transaction.LOCK.UPDATE,
@@ -408,7 +415,6 @@ exports.delete = async (req, res) => {
       status: "SUCCESS",
       message: "BSO successfully deleted!",
     });
-
   } catch (error) {
     await transaction.rollback();
 
@@ -429,7 +435,11 @@ exports.importFromSheet = async (req, res) => {
   }
 
   const transaction = await sequelize.transaction();
-  const uploadedFilePath = path.join(process.cwd(), "public/bsos", req.file.filename);
+  const uploadedFilePath = path.join(
+    process.cwd(),
+    "public/bsos",
+    req.file.filename,
+  );
 
   try {
     const workbook = XLSX.readFile(uploadedFilePath);
@@ -452,19 +462,22 @@ exports.importFromSheet = async (req, res) => {
       "Email",
       "Description",
     ];
-    const headerRow = XLSX.utils.sheet_to_json(sheet, {
-      header: 1,
-      range: 0,
-      blankrows: false,
-      defval: "",
-    })[0] || [];
+    const headerRow =
+      XLSX.utils.sheet_to_json(sheet, {
+        header: 1,
+        range: 0,
+        blankrows: false,
+        defval: "",
+      })[0] || [];
 
-    const normalizedHeaderRow = headerRow.map((value) => String(value || "").trim());
+    const normalizedHeaderRow = headerRow.map((value) =>
+      String(value || "").trim(),
+    );
     const invalidHeaders = normalizedHeaderRow.filter(
-      (header) => header && !expectedHeaders.includes(header)
+      (header) => header && !expectedHeaders.includes(header),
     );
     const missingHeaders = expectedHeaders.filter(
-      (header) => !normalizedHeaderRow.includes(header)
+      (header) => !normalizedHeaderRow.includes(header),
     );
 
     if (invalidHeaders.length > 0 || missingHeaders.length > 0) {
@@ -513,7 +526,14 @@ exports.importFromSheet = async (req, res) => {
       const email = normalize(rawEmail);
       const description = CapitalizeFirstLetter(normalize(rawDescription));
 
-      if (!name || !type || !contactNumber || !website || !email || !description) {
+      if (
+        !name ||
+        !type ||
+        !contactNumber ||
+        !website ||
+        !email ||
+        !description
+      ) {
         skipped.push({
           row: excelRow,
           reason: "Missing required fields",
@@ -567,7 +587,9 @@ exports.importFromSheet = async (req, res) => {
       transaction,
     });
 
-    const existingNameSet = new Set(existing.map((item) => normalizeLower(item.name)));
+    const existingNameSet = new Set(
+      existing.map((item) => normalizeLower(item.name)),
+    );
     const toCreate = [];
 
     prepared.forEach((item, idx) => {
@@ -615,4 +637,3 @@ exports.importFromSheet = async (req, res) => {
     }
   }
 };
-
