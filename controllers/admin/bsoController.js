@@ -337,7 +337,7 @@ let { name, type, contactNumber, website, email, description } = req.body;
         fs.unlinkSync(failedPath);
       }
     }
-
+    console.log("Here is the error: ",error)
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
