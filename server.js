@@ -53,7 +53,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["http://localhost:3000", "https://in4msmeportalend.nipdb.com", "http://uat-api.erongored.com.na"],
+    origin: ["http://localhost:3000", "https://in4msmeportal.nipdb.com", "http://uat-api.erongored.com.na"],
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
   },
 });
@@ -71,7 +71,7 @@ app.use(express.static("public"));
 app.set("trust proxy", 1);
 app.use(
   cors({
-    origin: ["http://localhost:3000", "https://in4msmeportalend.nipdb.com", "http://uat-api.erongored.com.na"],
+    origin: ["http://localhost:3000", "https://in4msmeportal.nipdb.com", "http://uat-api.erongored.com.na"],
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
     credentials: true,
     exposedHeaders: ["Authorization", "x-access-token", "data-access-token"],
