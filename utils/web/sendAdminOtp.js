@@ -1,6 +1,7 @@
 const bcrypt = require("bcrypt");
 const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const sequelize = require("../../config/dbConfig");
 const OTP = require("../../models/otpVerification");
 require("dotenv").config();
 
@@ -30,9 +31,31 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
       });
     }
 
+  const otp = generateOTP();
+  const hashedOTP = await bcrypt.hash(otp, 10);
+  const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
+  const role = "Admin";
+
+  const transaction = await sequelize.transaction();
+
   try {
-    const otp = generateOTP();
-    const hashedOTP = await bcrypt.hash(otp, 10);
+    await OTP.destroy({
+      where: { userId: id, role },
+      transaction,
+    });
+
+    await OTP.create(
+      {
+        userId: id,
+        otp: hashedOTP,
+        role,
+        createdAt: new Date(),
+        expiresAt,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -40,20 +63,6 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
         user: process.env.USERNAME,
         pass: process.env.PASSWORD,
       },
-    });
-
-    await OTP.destroy({
-      where: { userId: id},
-    });
-
-    const expiresAt = new Date(Date.now() + 3 * 60 * 1000);
-
-    await OTP.create({
-      userId: id,
-      otp: hashedOTP,
-      role: "Admin",
-      createdAt: new Date(),
-      expiresAt,
     });
 
     await transporter.sendMail({
@@ -137,7 +146,10 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     });
 
   } catch (error) {
-     console.error("OTP Service Error:", {
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
+    console.error("OTP Service Error:", {
       message: error.message,
       stack: error.stack
     });
