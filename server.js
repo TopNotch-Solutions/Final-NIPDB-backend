@@ -195,10 +195,21 @@ const getAllUnreadCount = async ({ receiverId }) => {
 const getAllBusinessUnreadCount = async ({ receiverId, businessId }) => {
   if (!receiverId || !businessId) return 0;
 
+  const parsedBusinessId = Number(businessId) || businessId;
+
+  const conversations = await Conversation.findAll({
+    where: { businessId: parsedBusinessId },
+    attributes: ["id"],
+    raw: true,
+  });
+
+  const conversationIds = conversations.map((conversation) => conversation.id);
+  if (!conversationIds.length) return 0;
+
   return Message.count({
     where: {
       receiverId,
-      businessId,
+      conversationId: { [Op.in]: conversationIds },
       viewed: false,
       receiverDelete: false,
     },

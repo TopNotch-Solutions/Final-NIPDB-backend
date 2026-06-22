@@ -849,14 +849,24 @@ exports.allBusinessCount = async (req, res) => {
       });
     }
 
-    const allBusinessTotalCount = await Message.count({
-      where: {
-        receiverId,
-        businessId,
-        viewed: false,
-        receiverDelete: false,
-      },
+    const conversations = await Conversation.findAll({
+      where: { businessId: Number(businessId) || businessId },
+      attributes: ["id"],
+      raw: true,
     });
+
+    const conversationIds = conversations.map((conversation) => conversation.id);
+
+    const allBusinessTotalCount = conversationIds.length
+      ? await Message.count({
+          where: {
+            receiverId,
+            conversationId: { [Op.in]: conversationIds },
+            viewed: false,
+            receiverDelete: false,
+          },
+        })
+      : 0;
 
     res.status(200).json({
       status: "SUCCESS",
