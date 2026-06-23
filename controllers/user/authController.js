@@ -62,14 +62,14 @@ exports.signup = async (req, res) => {
 
   if (existingUser) {
     if (!existingUser.verified) {
+      await t.rollback();
       const subject = "In4MSME OTP Verification";
 
       await sendOTPVerification(
         { id: existingUser.id, email: existingUser.email, role: existingUser.role || "User" },
         res,
-        { subject },t
+        { subject }
       );
-      await t.commit();
       return;
     }
 
@@ -104,14 +104,14 @@ exports.signup = async (req, res) => {
     });
   }
 
+  await t.commit();
+
   const subject = "In4MSME OTP Verification";
   await sendOTPVerification(
     { id: newUser.id, email: newUser.email, role: "User" },
     res,
-    { subject },
-    t
+    { subject }
   );
- await t.commit();
 } catch (error) {
   await t.rollback();
   console.error("User Registration Error:", {
@@ -295,23 +295,16 @@ exports.resendOTP = async (req, res) => {
         message: "User's ID required fields",
       });
     }
-  const t = await sequelize.transaction(); // Start transaction
 
   try {
-    await OTP.destroy({ where: { userId }, transaction: t });
     const subject = "In4MSME OTP Resend Verification";
 
     await sendOTPVerification(
       { id: userId, email, role: "User" },
       res,
-      { subject },
-      t
+      { subject }
     );
-
-    await t.commit();
-    
   } catch (error) {
-    await t.rollback();
     console.error("Resend OTP Error:", error);
 
     return res.status(500).json({
@@ -329,32 +322,24 @@ exports.sendOTP = async (req, res) => {
         message: "User's email required fields",
       });
     }
-  const t = await sequelize.transaction(); // Start transaction
 
   try {
-    const existingUser = await User.findOne({ where: { email }, transaction: t });
+    const existingUser = await User.findOne({ where: { email } });
 
     if (!existingUser) {
-      await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "No user found with the provided email.",
       });
     }
-    await OTP.destroy({ where: { userId: existingUser.id }, transaction: t });
 
     const subject = "In4MSME OTP Verification";
     await sendOTPVerification(
       { id: existingUser.id, email, role: "User" },
       res,
-      { subject },
-      t
+      { subject }
     );
-
-    await t.commit();
-
   } catch (error) {
-    await t.rollback();
     console.error("Send OTP Error:", error);
 
     return res.status(500).json({
@@ -412,14 +397,13 @@ exports.login = async (req, res) => {
     }
 
     if (!user.verified) {
+      await t.rollback();
       const subject = "In4MSME Account Verification";
       await sendOTPVerification(
         { id: user.id, email, role: "User" },
         res,
-        { subject },
-        t
+        { subject }
       );
-      await t.commit();
       return; 
     }
 
@@ -511,13 +495,11 @@ exports.forgotPasswordEmail = async (req, res) => {
         message: "User email required fields",
       });
     }
-  const t = await sequelize.transaction();
 
   try {
-    const existingUser = await User.findOne({ where: { email }, transaction: t });
+    const existingUser = await User.findOne({ where: { email } });
 
     if (!existingUser) {
-      await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "User not found with the provided email.",
@@ -525,15 +507,9 @@ exports.forgotPasswordEmail = async (req, res) => {
     }
 
     const userId = existingUser.id;
-    await OTP.destroy({ where: { userId }, transaction: t });
-
     const subject = "In4MSME Forgot Password Verification";
-    await sendOTPVerification({ id: userId, email, role: "User" }, res, { subject },t);
-
-    await t.commit();
-
+    await sendOTPVerification({ id: userId, email, role: "User" }, res, { subject });
   } catch (error) {
-    await t.rollback();
     console.error("Forgot Password Email Error:", error);
 
     return res.status(500).json({
@@ -912,16 +888,13 @@ exports.forgotPasswordResendOTP = async (req, res) => {
         message: "User's email required fields",
       });
     }
-  const t = await sequelize.transaction(); // Start a transaction
 
   try {
     const existingUser = await User.findOne({
       where: { email },
-      transaction: t,
     });
 
     if (!existingUser) {
-      await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "User not found.",
@@ -929,24 +902,13 @@ exports.forgotPasswordResendOTP = async (req, res) => {
     }
 
     const userId = existingUser.id;
-
-    await OTP.destroy({
-      where: { userId },
-      transaction: t,
-    });
-
     const subject = "In4MSME Forgot Password Resend OTP Verification";
     await sendOTPVerification(
       { id: userId, email, role: "User" },
       res,
-      { subject },
-      t
+      { subject }
     );
-
-    await t.commit();
-
   } catch (error) {
-    await t.rollback();
     console.error("Forgot Password Resend OTP Error:", error);
 
     return res.status(500).json({

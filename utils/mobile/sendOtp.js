@@ -1,10 +1,11 @@
 const bcrypt = require("bcrypt");
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const sequelize = require("../../config/dbConfig");
 const OTP = require("../../models/otpVerification");
 require("dotenv").config();
 
-const sendOTPVerification = async ({ id, email, role }, res, { subject }, transaction = null) => {
+const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
   console.log(id, email,role, subject)
   if (!id) {
       return res.status(400).json({
@@ -200,18 +201,30 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }, transa
 `
       };
     }
-    await OTP.destroy({
-      where: { userId: id, role },
-      transaction 
-    });
 
-    await OTP.create({
-      userId: id,
-      otp: hashedOTP,
-      role,
-      createdAt: new Date(),
-      expiresAt
-    },{transaction});
+    const transaction = await sequelize.transaction();
+
+    try {
+      await OTP.destroy({
+        where: { userId: id, role },
+        transaction,
+      });
+
+      await OTP.create({
+        userId: id,
+        otp: hashedOTP,
+        role,
+        createdAt: new Date(),
+        expiresAt,
+      }, { transaction });
+
+      await transaction.commit();
+    } catch (dbError) {
+      if (!transaction.finished) {
+        await transaction.rollback();
+      }
+      throw dbError;
+    }
 
     await transporter.sendMail(mailOptions);
 

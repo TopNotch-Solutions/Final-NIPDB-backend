@@ -431,12 +431,11 @@ exports.forgotPassword = async (req, res) => {
         .status(404)
         .json({ status: "FAILURE", message: "User not found!" });
     }
-    const t = await sequelize.transaction();
-    let userId = existingUser.id;
+    const userId = existingUser.id;
     const subject = "IN4MSME Forgot Password Verification";
     await sendOTPVerification({ id: userId, email, role: "Admin" }, res, {
       subject,
-    },t);
+    });
   } catch (error) {
     res
       .status(500)
