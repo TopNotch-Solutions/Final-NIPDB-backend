@@ -376,59 +376,64 @@ exports.businessUser = async (req, res) => {
   try {
     const id = req.user.id;
     const { currentBusinessId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
 
     if (!id || !currentBusinessId) {
       return res.status(400).json({ status: "FAILURE", message: "Empty input fields" });
     }
 
-    const conversations = await Conversation.findAll({
+    const { count, rows: conversations } = await Conversation.findAndCountAll({
       where: {
         businessId: currentBusinessId,
         [Op.or]: [
-          // { senderId: id },
-          // { receiverId: id}
           { senderId: id },
           { receiverId: id }
         ]
-      }
+      },
+      order: [["createdAt", "DESC"]],
+      limit,
+      offset,
     });
 
     if (!conversations.length) {
       return res.status(200).json({
         status: "SUCCESS",
         message: "No conversations found",
+        pagination: {
+          totalRecords: count,
+          currentPage: page,
+          totalPages: Math.ceil(count / limit) || 0,
+          pageSize: limit,
+        },
         data: []
       });
     }
-
-    const userIds = [...new Set(
-      conversations.map(convo => convo.senderId === id ? convo.receiverId : convo.senderId)
-    )];
 
     const latestMessages = await Promise.all(
       conversations.map(async (conversation) => {
         return Message.findOne({
           where: {
-             conversationId: conversation.id ,
-             [Op.or]: [
+            conversationId: conversation.id,
+            [Op.or]: [
               { senderId: id, senderDelete: false },
               { receiverId: id, receiverDelete: false }
             ]
-            },
-          order: [['createdAt', 'DESC']]
+          },
+          order: [["createdAt", "DESC"]],
         });
       })
     );
 
-    const results = await Promise.all(userIds.map(async (otherUserId) => {
-      const conversation = conversations.find(convo => convo.senderId === otherUserId || convo.receiverId === otherUserId);
-      if (!conversation) return null;
+    const results = await Promise.all(conversations.map(async (conversation) => {
+      const otherUserId = conversation.senderId === id
+        ? conversation.receiverId
+        : conversation.senderId;
 
-      const latestMessage = latestMessages.find(msg => msg.conversationId === conversation.id);
-
-      if (!latestMessage) {
-        throw new Error("Latest message not found");
-      }
+      const latestMessage = latestMessages.find(
+        (msg) => msg && msg.conversationId === conversation.id
+      );
 
       const unreadCount = await Message.count({
         where: {
@@ -472,14 +477,13 @@ exports.businessUser = async (req, res) => {
         receiverId: conversation.receiverId,
         businessId: conversation.businessId,
         createdAt: conversation.createdAt,
-        updatedAt: conversation.updatedAt
       };
 
       return {
         userId: otherUser.id,
         displayName,
         profilePicture,
-        latestMessage,
+        latestMessage: latestMessage || null,
         conversationDetails,
         unreadCount,
       };
@@ -488,7 +492,13 @@ exports.businessUser = async (req, res) => {
     res.status(200).json({
       status: "SUCCESS",
       message: "Conversations successfully retrieved!",
-      data: results.filter(result => result !== null),  
+      pagination: {
+        totalRecords: count,
+        currentPage: page,
+        totalPages: Math.ceil(count / limit),
+        pageSize: limit,
+      },
+      data: results,
     });
   } catch (error) {
     console.error("Error retrieving conversations:", error);
