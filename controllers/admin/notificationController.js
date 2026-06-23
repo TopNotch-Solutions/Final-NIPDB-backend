@@ -12,6 +12,7 @@ const adminFirebase = require("../../config/firebaseConfig");
 const DeviceToken = require("../../models/deviceToken");
 const PushNotification = require("../../models/pushNotifications");
 const FcmToken = require("../../models/fcmToken");
+const { isInvalidFcmTokenError, removeInvalidFcmToken } = require("../../utils/shared/fcmTokenCleanup");
 const { role } = require("./userController");
 
 exports.createAll = async (req, res) => {
@@ -111,22 +112,20 @@ exports.createAll = async (req, res) => {
             .send(message)
             .catch(async (firebaseError) => {
               console.error("Firebase error:", firebaseError);
-              if (
-                firebaseError.code ===
-                "messaging/registration-token-not-registered"
-              ) {
-                const isFcmToken = await FcmToken.findOne({
+              if (!isInvalidFcmTokenError(firebaseError)) return;
+
+              const isFcmToken = await FcmToken.findOne({
+                where: { deviceToken: message.token },
+              });
+              if (isFcmToken) {
+                await FcmToken.destroy({
                   where: { deviceToken: message.token },
                 });
-                if (isFcmToken) {
-                  await FcmToken.destroy({
-                    where: { deviceToken: message.token },
-                  });
-                } else {
-                  await DeviceToken.destroy({
-                    where: { deviceToken: message.token },
-                  });
-                }
+                console.log(`Removed invalid FCM token: ${message.token}`);
+              } else {
+                await DeviceToken.destroy({
+                  where: { deviceToken: message.token },
+                });
               }
             })
         )
@@ -304,18 +303,15 @@ exports.createAll = async (req, res) => {
             .send(message)
             .catch(async (firebaseError) => {
               console.error("Firebase error:", firebaseError);
-              if (
-                firebaseError.code ===
-                "messaging/registration-token-not-registered"
-              ) {
-                const userId = userIds[index];
-                await FcmToken.destroy({
-                  where: { userId, deviceToken: message.token },
-                });
-                console.log(
-                  `Removed unregistered FCM token for user: ${userId}`
-                );
-              }
+              if (!isInvalidFcmTokenError(firebaseError)) return;
+
+              const userId = userIds[index];
+              await FcmToken.destroy({
+                where: { userId, deviceToken: message.token },
+              });
+              console.log(
+                `Removed invalid FCM token for user: ${userId}`
+              );
             })
         );
 
@@ -481,9 +477,7 @@ exports.createSingle = async (req, res) => {
       } catch (firebaseError) {
         console.error("Firebase error:", firebaseError);
 
-        if (
-          firebaseError.code === "messaging/registration-token-not-registered"
-        ) {
+        if (isInvalidFcmTokenError(firebaseError)) {
           await FcmToken.destroy({
             where: { userId, deviceToken: firebaseError.token },
           });

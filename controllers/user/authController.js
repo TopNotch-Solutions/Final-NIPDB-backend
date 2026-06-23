@@ -19,6 +19,7 @@ const BusinessHour = require("../../models/businessHour");
 const DeviceToken = require("../../models/deviceToken");
 const FcmToken = require("../../models/fcmToken");
 const sequelize = require("../../config/dbConfig");
+const { removeInvalidFcmToken } = require("../../utils/shared/fcmTokenCleanup");
 const { newPassword } = require("../admin/authController");
 
 exports.signup = async (req, res) => {
@@ -778,12 +779,9 @@ exports.test = async (req, res) => {
           message: "Notification sent successfully."
         });
       })
-      .catch((firebaseError) => {
+      .catch(async (firebaseError) => {
         console.error("Firebase error:", firebaseError);
-        if (firebaseError.code === "messaging/registration-token-not-registered") {
-          // Remove unregistered token logic here
-          // ...
-        }
+        await removeInvalidFcmToken(message.token, firebaseError);
       });
   } catch (error) {
     res.status(500).json({ status: "FAILURE", message: "Internal Server Error", error });

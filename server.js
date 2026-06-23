@@ -48,6 +48,7 @@ const { where } = require("sequelize");
 const CapitalizeFirstLetter = require("./utils/shared/capitalizeFirstLetter");
 const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
+const { removeInvalidFcmToken } = require("./utils/shared/fcmTokenCleanup");
 
 const app = express();
 const server = http.createServer(app);
@@ -761,17 +762,11 @@ io.on("connection", (socket) => {
                       } catch (firebaseError) {
                         console.error("Firebase error:", firebaseError);
 
-                        if (
-                          firebaseError.code ===
-                          "messaging/registration-token-not-registered"
-                        ) {
-                          await FcmToken.destroy({
-                            where: { deviceToken },
-                          });
-                          console.log(
-                            `Removed unregistered device token: ${deviceToken}`
-                          );
-                        } else {
+                        const removed = await removeInvalidFcmToken(
+                          deviceToken,
+                          firebaseError
+                        );
+                        if (!removed) {
                           throw firebaseError;
                         }
                       }
@@ -833,17 +828,11 @@ io.on("connection", (socket) => {
                       } catch (firebaseError) {
                         console.error("Firebase error:", firebaseError);
 
-                        if (
-                          firebaseError.code ===
-                          "messaging/registration-token-not-registered"
-                        ) {
-                          await FcmToken.destroy({
-                            where: { deviceToken },
-                          });
-                          console.log(
-                            `Removed unregistered device token: ${deviceToken}`
-                          );
-                        } else {
+                        const removed = await removeInvalidFcmToken(
+                          deviceToken,
+                          firebaseError
+                        );
+                        if (!removed) {
                           throw firebaseError;
                         }
                       }
@@ -1198,17 +1187,11 @@ io.on("connection", (socket) => {
                       } catch (firebaseError) {
                         console.error("Firebase error:", firebaseError);
 
-                        if (
-                          firebaseError.code ===
-                          "messaging/registration-token-not-registered"
-                        ) {
-                          await FcmToken.destroy({
-                            where: { deviceToken },
-                          });
-                          console.log(
-                            `Removed unregistered device token: ${deviceToken}`
-                          );
-                        } else {
+                        const removed = await removeInvalidFcmToken(
+                          deviceToken,
+                          firebaseError
+                        );
+                        if (!removed) {
                           throw firebaseError;
                         }
                       }
@@ -1268,17 +1251,11 @@ io.on("connection", (socket) => {
                       } catch (firebaseError) {
                         console.error("Firebase error:", firebaseError);
 
-                        if (
-                          firebaseError.code ===
-                          "messaging/registration-token-not-registered"
-                        ) {
-                          await FcmToken.destroy({
-                            where: { deviceToken },
-                          });
-                          console.log(
-                            `Removed unregistered device token: ${deviceToken}`
-                          );
-                        } else {
+                        const removed = await removeInvalidFcmToken(
+                          deviceToken,
+                          firebaseError
+                        );
+                        if (!removed) {
                           throw firebaseError;
                         }
                       }

@@ -19,6 +19,11 @@ const adminFirebase = require("../../config/firebaseConfig");
 const Region = require("../../models/region");
 const Town = require("../../models/town");
 const FcmToken = require("../../models/fcmToken");
+const {
+  isUsableFcmToken,
+  removeInvalidFcmToken,
+  removeUnusableFcmToken,
+} = require("../../utils/shared/fcmTokenCleanup");
 
 exports.create = async (req, res) => {
   let {
@@ -1318,14 +1323,15 @@ Kind Regards, NIPDB`,
           },
         };
         deviceTokens.forEach(async ({ deviceToken }) => {
+          if (!isUsableFcmToken(deviceToken)) {
+            await removeUnusableFcmToken(deviceToken);
+            return;
+          }
           try {
             await adminFirebase.messaging().send({ ...messagePayload, token: deviceToken });
           } catch (firebaseError) {
             console.error("Firebase error:", firebaseError);
-            if (firebaseError.code === "messaging/registration-token-not-registered") {
-              await FcmToken.destroy({ where: { deviceToken } });
-              console.log(`Removed unregistered device token: ${deviceToken}`);
-            }
+            await removeInvalidFcmToken(deviceToken, firebaseError);
           }
         });
       })
@@ -1425,14 +1431,15 @@ exports.block = async (req, res) => {
         };
 
         deviceTokens.forEach(async ({ deviceToken }) => {
+          if (!isUsableFcmToken(deviceToken)) {
+            await removeUnusableFcmToken(deviceToken);
+            return;
+          }
           try {
             await adminFirebase.messaging().send({ ...messagePayload, token: deviceToken });
           } catch (firebaseError) {
             console.error("Firebase error:", firebaseError);
-            if (firebaseError.code === "messaging/registration-token-not-registered") {
-              await FcmToken.destroy({ where: { deviceToken } });
-              console.log(`Removed unregistered device token: ${deviceToken}`);
-            }
+            await removeInvalidFcmToken(deviceToken, firebaseError);
           }
         });
       })
