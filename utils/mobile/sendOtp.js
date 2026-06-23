@@ -123,7 +123,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }, transa
       };
     } else {
       const token = crypto.randomBytes(32).toString('hex');
-      resetLink = `http://41.219.71.112:8080/reset-password?token=${token}&userId=${id}`;
+      resetLink = `http://localhost:3000/reset-password?token=${token}&userId=${id}`;
       hashedOTP = await bcrypt.hash(token, 10);
 
       expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
