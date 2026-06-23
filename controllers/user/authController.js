@@ -5,6 +5,7 @@ const bcrypt = require("bcrypt");
 const path = require("path");
 const fs = require("fs");
 const adminFirebase = require("../../config/firebaseConfig")
+const { buildFcmMessage } = require("../../utils/shared/fcmMessaging");
 const OTP = require("../../models/otpVerification");
 const sendOTPVerification = require("../../utils/mobile/sendOtp");
 const { where, Op, } = require("sequelize");
@@ -745,32 +746,14 @@ exports.migrate = async (req, res) => {
 };
 exports.test = async (req, res) => {
   try {
-    const message = {
-      notification: {
-        title: "New Message",
-        body: "We are testing",
-      },
+    const message = buildFcmMessage({
+      title: "New Message",
+      body: "We are testing",
       data: {
         route: "/MessagesMsme",
       },
-      android: {
-        priority: "high",
-        notification: {
-          sound: "default",
-        },
-      },
-      apns: {
-        headers: {
-          "apns-priority": "10",
-        },
-        payload: {
-          aps: {
-            sound: "default",
-          },
-        },
-      },
-      token: "fiHL3Z9bTTSDsPNftf2M8z:APA91bGFuyuK2HrYEZDoyfFcpazgeg-GPVdwvmKmzjwIWkxQXg_LMAXGk8CnJ0jrFulVigsqsteJWHArCo9C7tT7bm6jEu3p1qT5MTE89jUufm_sVj6ya4k"
-    };
+      token: "fiHL3Z9bTTSDsPNftf2M8z:APA91bGFuyuK2HrYEZDoyfFcpazgeg-GPVdwvmKmzjwIWkxQXg_LMAXGk8CnJ0jrFulVigsqsteJWHArCo9C7tT7bm6jEu3p1qT5MTE89jUufm_sVj6ya4k",
+    });
 
     await adminFirebase.messaging().send(message)
       .then(() => {

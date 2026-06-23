@@ -15,15 +15,10 @@ const { getMonthlyData } = require("../../utils/web/getMonthlyData");
 const sendEmail = require("../../utils/mobile/sendEmail");
 const fs = require("fs");
 const path = require("path");
-const adminFirebase = require("../../config/firebaseConfig");
 const Region = require("../../models/region");
 const Town = require("../../models/town");
 const FcmToken = require("../../models/fcmToken");
-const {
-  isUsableFcmToken,
-  removeInvalidFcmToken,
-  removeUnusableFcmToken,
-} = require("../../utils/shared/fcmTokenCleanup");
+const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
 
 exports.create = async (req, res) => {
   let {
@@ -1305,37 +1300,19 @@ Kind Regards, NIPDB`,
 
     sendEmail({ email: user.email, subject: statusMessage.title, notification: statusMessage.type });
 
-    FcmToken.findAll({ where: { userId: existingBusiness.userId }, attributes: ["deviceToken"] })
-      .then((deviceTokens) => {
-        if (!deviceTokens.length) return;
-        const messagePayload = {
-          notification: { title: statusMessage.title, body: statusMessage.body },
-          data: {
-            title: statusMessage.title,
-            body: statusMessage.body,
-            type: "status_update",
-            click_action: "NOTIFICATION_CLICK",
-          },
-          android: { priority: "high", notification: { sound: "default", channelId: "default-channel-id" } },
-          apns: {
-            payload: { aps: { sound: "default", category: "status_update", priority: 10 }, notifee: { title: statusMessage.title, body: statusMessage.body } },
-            headers: { "apns-push-type": "background", "apns-priority": "10" },
-          },
-        };
-        deviceTokens.forEach(async ({ deviceToken }) => {
-          if (!isUsableFcmToken(deviceToken)) {
-            await removeUnusableFcmToken(deviceToken);
-            return;
-          }
-          try {
-            await adminFirebase.messaging().send({ ...messagePayload, token: deviceToken });
-          } catch (firebaseError) {
-            console.error("Firebase error:", firebaseError);
-            await removeInvalidFcmToken(deviceToken, firebaseError);
-          }
-        });
-      })
-      .catch((err) => console.error("Failed to fetch device tokens:", err));
+    const deviceTokens = await FcmToken.findAll({
+      where: { userId: existingBusiness.userId },
+      attributes: ["deviceToken"],
+    });
+
+    sendFcmToTokens(deviceTokens, {
+      title: statusMessage.title,
+      body: statusMessage.body,
+      data: {
+        type: "status_update",
+        click_action: "NOTIFICATION_CLICK",
+      },
+    }).catch((err) => console.error("Failed to send FCM notifications:", err));
 
     await transaction.commit();
     return res.status(200).json({
@@ -1417,33 +1394,18 @@ exports.block = async (req, res) => {
       notification: block ? "blocked" : "unblocked",
     });
 
-    FcmToken.findAll({ where: { userId }, attributes: ["deviceToken"] })
-      .then((deviceTokens) => {
-        if (!deviceTokens.length) return;
+    const deviceTokens = await FcmToken.findAll({
+      where: { userId },
+      attributes: ["deviceToken"],
+    });
 
-        const messagePayload = {
-          notification: {
-            title: block ? "Business Blocked" : "Business Unblocked",
-            body: notificationMessage,
-          },
-          android: { priority: "high", notification: { sound: "default" } },
-          apns: { headers: { "apns-priority": "10" }, payload: { aps: { sound: "default" } } },
-        };
-
-        deviceTokens.forEach(async ({ deviceToken }) => {
-          if (!isUsableFcmToken(deviceToken)) {
-            await removeUnusableFcmToken(deviceToken);
-            return;
-          }
-          try {
-            await adminFirebase.messaging().send({ ...messagePayload, token: deviceToken });
-          } catch (firebaseError) {
-            console.error("Firebase error:", firebaseError);
-            await removeInvalidFcmToken(deviceToken, firebaseError);
-          }
-        });
-      })
-      .catch((err) => console.error("Failed to fetch device tokens:", err));
+    sendFcmToTokens(deviceTokens, {
+      title: block ? "Business Blocked" : "Business Unblocked",
+      body: notificationMessage,
+      data: {
+        type: block ? "business_blocked" : "business_unblocked",
+      },
+    }).catch((err) => console.error("Failed to send FCM notifications:", err));
 
     return res.status(200).json({
       status: "SUCCESS",

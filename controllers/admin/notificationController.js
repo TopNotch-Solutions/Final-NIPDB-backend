@@ -8,11 +8,10 @@ const AdminNotification = require("../../models/adminNotifications");
 const MsmeInformation = require("../../models/msmeInformation");
 const sequelize = require("../../config/dbConfig");
 const nodemailer = require("nodemailer");
-const adminFirebase = require("../../config/firebaseConfig");
 const DeviceToken = require("../../models/deviceToken");
 const PushNotification = require("../../models/pushNotifications");
 const FcmToken = require("../../models/fcmToken");
-const { isInvalidFcmTokenError, removeInvalidFcmToken } = require("../../utils/shared/fcmTokenCleanup");
+const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
 const { role } = require("./userController");
 
 exports.createAll = async (req, res) => {
@@ -83,55 +82,11 @@ exports.createAll = async (req, res) => {
       const uniqueTokens = [...new Set(allDeviceTokens)];
       console.log(uniqueTokens);
 
-      const firebasePromises = [];
-      const notifications = uniqueTokens.map((token) => ({
-        notification: 
-        { title, 
-          body: notification
-         },
-        data: {
-          navigationId: "NotificationDetails" ,
-          title,
-           body: notification
-          },
-        android: { 
-          priority: "high",
-          notification: { sound: "default" } 
-        },
-        apns: {
-          headers: { "apns-priority": "10" },
-          payload: { aps: { sound: "default" } },
-        },
-        token,
-      }));
-
-      firebasePromises.push(
-        ...notifications.map((message) =>
-          adminFirebase
-            .messaging()
-            .send(message)
-            .catch(async (firebaseError) => {
-              console.error("Firebase error:", firebaseError);
-              if (!isInvalidFcmTokenError(firebaseError)) return;
-
-              const isFcmToken = await FcmToken.findOne({
-                where: { deviceToken: message.token },
-              });
-              if (isFcmToken) {
-                await FcmToken.destroy({
-                  where: { deviceToken: message.token },
-                });
-                console.log(`Removed invalid FCM token: ${message.token}`);
-              } else {
-                await DeviceToken.destroy({
-                  where: { deviceToken: message.token },
-                });
-              }
-            })
-        )
-      );
-
-      await Promise.all(firebasePromises);
+      await sendFcmToTokens(uniqueTokens, {
+        title,
+        body: notification,
+        data: { navigationId: "NotificationDetails" },
+      });
 
       // Store notifications in the database, avoiding duplicates
       const existingPushNotifications = await PushNotification.findAll({
@@ -268,54 +223,11 @@ exports.createAll = async (req, res) => {
       await Notification.bulkCreate(notifications);
 
       if (fcmTokens.length > 0) {
-        const firebaseNotifications = fcmTokens.map((token, index) => ({
-          notification: {
-            title,
-            body: notification,
-          },
-          data: {
-            navigationId: "notification",
-            title,
-            body: notification,
-          },
-          android: {
-            priority: "high",
-            notification: {
-              sound: "default",
-            },
-          },
-          apns: {
-            headers: {
-              "apns-priority": "10",
-            },
-            payload: {
-              aps: {
-                sound: "default",
-              },
-            },
-          },
-          token,
-        }));
-
-        const firebasePromises = firebaseNotifications.map((message, index) =>
-          adminFirebase
-            .messaging()
-            .send(message)
-            .catch(async (firebaseError) => {
-              console.error("Firebase error:", firebaseError);
-              if (!isInvalidFcmTokenError(firebaseError)) return;
-
-              const userId = userIds[index];
-              await FcmToken.destroy({
-                where: { userId, deviceToken: message.token },
-              });
-              console.log(
-                `Removed invalid FCM token for user: ${userId}`
-              );
-            })
-        );
-
-        await Promise.all(firebasePromises);
+        await sendFcmToTokens(fcmTokens, {
+          title,
+          body: notification,
+          data: { navigationId: "notification" },
+        });
       }
 
       res.status(200).json({
@@ -439,55 +351,16 @@ exports.createSingle = async (req, res) => {
     await sendEmail;
 
     if (deviceTokens.length > 0) {
-      const messages = deviceTokens.map((token) => ({
-        notification: { title, body: notification },
-        data: {
-          navigationId: "notificationMsme",
-          title, body: notification
-        },
-        android: {
-          priority: "high",
-          notification: {
-            sound: "default",
-          },
-        },
-        apns: {
-          headers: {
-            "apns-priority": "10",
-          },
-          payload: {
-            aps: {
-              sound: "default",
-            },
-          },
-        },
-        token,
-      }));
+      await sendFcmToTokens(deviceTokens, {
+        title,
+        body: notification,
+        data: { navigationId: "notificationMsme" },
+      });
 
-      try {
-        const responses = await Promise.all(
-          messages.map((message) => adminFirebase.messaging().send(message))
-        );
-
-        console.log("Successfully sent Firebase messages:", responses);
-        return res.status(200).json({
-          status: "SUCCESS",
-          message: "Notification sent to user and email delivered.",
-        });
-      } catch (firebaseError) {
-        console.error("Firebase error:", firebaseError);
-
-        if (isInvalidFcmTokenError(firebaseError)) {
-          await FcmToken.destroy({
-            where: { userId, deviceToken: firebaseError.token },
-          });
-        }
-
-        return res.status(500).json({
-          status: "FAILURE",
-          message: "Firebase error: " + firebaseError.message,
-        });
-      }
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Notification sent to user and email delivered.",
+      });
     } else {
       return res.status(200).json({
         status: "SUCCESS",

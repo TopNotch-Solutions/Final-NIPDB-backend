@@ -7,6 +7,8 @@ const sequelize = require("../../config/dbConfig");
 const MsmeInformation = require("../../models/msmeInformation");
 const MsmeAdditionalInfo = require("../../models/msmeAdditionalInfo");
 const Conversation = require("../../models/conversation");
+const FcmToken = require("../../models/fcmToken");
+const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
 
 exports.create = async (req, res) => {
   try {
@@ -93,28 +95,23 @@ exports.create = async (req, res) => {
     });
 
     if (newMessage) {
-      if (checkReceiver.fcmToken) {
-        const pushNotification = {
-          notification: {
-            title: "Message notification",
-            body: `${newMessage.message}`,
-          },
-          token: checkReceiver.fcmToken,
-        };
+      const receiverTokens = await FcmToken.findAll({
+        where: { userId: receiverId },
+        attributes: ["deviceToken"],
+      });
 
-        try {
-          await firebaseAdmin.messaging().send(pushNotification);
-          return res.status(201).json({
-            status: "SUCCESS",
-            message: "Message successfully sent!",
-          });
-        } catch (error) {
-          console.error("Error sending push notification:", error);
-          return res.status(500).json({
-            status: "FAILURE",
-            message: "Internal server error. Unable to send push notification",
-          });
-        }
+      if (receiverTokens.length) {
+        sendFcmToTokens(receiverTokens, {
+          title: `${checkSender.firstName} ${checkSender.lastName}`,
+          body: newMessage.message,
+          data: {
+            navigationId: "directMessage",
+            receiverId,
+            senderId: id,
+            businessId,
+            conversationId,
+          },
+        }).catch((error) => console.error("Error sending push notification:", error));
       }
 
       return res.status(201).json({

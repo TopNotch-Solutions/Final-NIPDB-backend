@@ -8,7 +8,6 @@ const http = require("http");
 const rateLimit = require("express-rate-limit");
 const { Server } = require("socket.io");
 const User = require("./models/user");
-const adminFirebase = require("./config/firebaseConfig");
 const Notification = require("./models/notification");
 const Message = require("./models/directMessage");
 const AdminNotification = require("./models/adminNotifications");
@@ -48,7 +47,7 @@ const { where } = require("sequelize");
 const CapitalizeFirstLetter = require("./utils/shared/capitalizeFirstLetter");
 const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
-const { removeInvalidFcmToken } = require("./utils/shared/fcmTokenCleanup");
+const { sendFcmToTokens } = require("./utils/shared/fcmMessaging");
 
 const app = express();
 const server = http.createServer(app);
@@ -720,60 +719,17 @@ io.on("connection", (socket) => {
                 });
 
                 if (allUserDeviceTokens.length > 0) {
-                  const message = {
-                    notification: {
-                      title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
-                      body: newCapitalizedMessage,
-                    },
+                  await sendFcmToTokens(allUserDeviceTokens, {
+                    title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
+                    body: newCapitalizedMessage,
                     data: {
-                      title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
-                      body: newCapitalizedMessage,
                       navigationId: "directMessageMsme",
-                      receiverId: String(receiverId),
-                      senderId: String(senderId),
-                      businessId: String(businessId),
-                      conversationId: String(conversationId)
+                      receiverId,
+                      senderId,
+                      businessId,
+                      conversationId,
                     },
-                    android: {
-                      priority: "high",
-                      notification: {
-                        sound: "default",
-                      },
-                    },
-                    apns: {
-                      headers: {
-                        "apns-priority": "10",
-                      },
-                      payload: {
-                        aps: {
-                          sound: "default",
-                        },
-                      },
-                    },
-                  };
-
-                  const firebasePromises = allUserDeviceTokens.map(
-                    async ({ deviceToken }) => {
-                      try {
-                        return await adminFirebase
-                          .messaging()
-                          .send({ ...message, token: deviceToken })
-                          .then({});
-                      } catch (firebaseError) {
-                        console.error("Firebase error:", firebaseError);
-
-                        const removed = await removeInvalidFcmToken(
-                          deviceToken,
-                          firebaseError
-                        );
-                        if (!removed) {
-                          throw firebaseError;
-                        }
-                      }
-                    }
-                  );
-
-                  await Promise.all(firebasePromises);
+                  });
                 }
                 io.to(receiver.socketId).emit("new-lastest-messages-business", {
                   data: results.filter((result) => result !== null),
@@ -786,60 +742,17 @@ io.on("connection", (socket) => {
                 });
 
                 if (allUserDeviceTokens.length > 0) {
-                  const message = {
-                    notification: {
-                      title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
-                      body: newCapitalizedMessage,
-                    },
+                  await sendFcmToTokens(allUserDeviceTokens, {
+                    title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
+                    body: newCapitalizedMessage,
                     data: {
-                      title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
-                      body: newCapitalizedMessage,
                       navigationId: "directMessageMsme",
-                      receiverId: String(receiverId),
-                      senderId: String(senderId),
-                      businessId: String(businessId),
-                      conversationId: String(conversationId)
+                      receiverId,
+                      senderId,
+                      businessId,
+                      conversationId,
                     },
-                    android: {
-                      priority: "high",
-                      notification: {
-                        sound: "default",
-                      },
-                    },
-                    apns: {
-                      headers: {
-                        "apns-priority": "10",
-                      },
-                      payload: {
-                        aps: {
-                          sound: "default",
-                        },
-                      },
-                    },
-                  };
-
-                  const firebasePromises = allUserDeviceTokens.map(
-                    async ({ deviceToken }) => {
-                      try {
-                        return await adminFirebase
-                          .messaging()
-                          .send({ ...message, token: deviceToken })
-                          .then({});
-                      } catch (firebaseError) {
-                        console.error("Firebase error:", firebaseError);
-
-                        const removed = await removeInvalidFcmToken(
-                          deviceToken,
-                          firebaseError
-                        );
-                        if (!removed) {
-                          throw firebaseError;
-                        }
-                      }
-                    }
-                  );
-
-                  await Promise.all(firebasePromises);
+                  });
                 }
               }
 
@@ -1146,59 +1059,17 @@ io.on("connection", (socket) => {
                 });
 
                 if (allUserDeviceTokens.length > 0) {
-                  const message = {
-                    notification: {
-                      title: `${checkBusiness.businessDisplayName}`,
-                      body: newCapitalizedMessage,
-                    },
+                  await sendFcmToTokens(allUserDeviceTokens, {
+                    title: `${checkBusiness.businessDisplayName}`,
+                    body: newCapitalizedMessage,
                     data: {
-                      title: `${checkBusiness.businessDisplayName}`,
-                      body: newCapitalizedMessage,
                       navigationId: "directMessage",
-                      receiverId: String(receiverId),
-                      senderId: String(senderId),
-                      businessId: String(businessId),
-                      conversationId: String(conversationId),
+                      receiverId,
+                      senderId,
+                      businessId,
+                      conversationId,
                     },
-                    android: {
-                      priority: "high",
-                      notification: {
-                        sound: "default",
-                      },
-                    },
-                    apns: {
-                      headers: {
-                        "apns-priority": "10",
-                      },
-                      payload: {
-                        aps: {
-                          sound: "default",
-                        },
-                      },
-                    },
-                  };
-
-                  const firebasePromises = allUserDeviceTokens.map(
-                    async ({ deviceToken }) => {
-                      try {
-                        return await adminFirebase
-                          .messaging()
-                          .send({ ...message, token: deviceToken });
-                      } catch (firebaseError) {
-                        console.error("Firebase error:", firebaseError);
-
-                        const removed = await removeInvalidFcmToken(
-                          deviceToken,
-                          firebaseError
-                        );
-                        if (!removed) {
-                          throw firebaseError;
-                        }
-                      }
-                    }
-                  );
-
-                  await Promise.all(firebasePromises);
+                  });
                 }
                 io.to(receiver.socketId).emit("new-lastest-messages-user", {
                   data: results,
@@ -1210,59 +1081,17 @@ io.on("connection", (socket) => {
                 });
 
                 if (allUserDeviceTokens.length > 0) {
-                  const message = {
-                    notification: {
-                      title: `${checkBusiness.businessDisplayName}`,
-                      body: newCapitalizedMessage,
-                    },
+                  await sendFcmToTokens(allUserDeviceTokens, {
+                    title: `${checkBusiness.businessDisplayName}`,
+                    body: newCapitalizedMessage,
                     data: {
-                      title: `${checkBusiness.businessDisplayName}`,
-                      body: newCapitalizedMessage,
                       navigationId: "directMessage",
-                      receiverId: String(senderId),
-                      senderId: String(receiverId),
-                      businessId: String(businessId),
-                      conversationId: String(conversationId),
+                      receiverId: senderId,
+                      senderId: receiverId,
+                      businessId,
+                      conversationId,
                     },
-                    android: {
-                      priority: "high",
-                      notification: {
-                        sound: "default",
-                      },
-                    },
-                    apns: {
-                      headers: {
-                        "apns-priority": "10",
-                      },
-                      payload: {
-                        aps: {
-                          sound: "default",
-                        },
-                      },
-                    },
-                  };
-
-                  const firebasePromises = allUserDeviceTokens.map(
-                    async ({ deviceToken }) => {
-                      try {
-                        return await adminFirebase
-                          .messaging()
-                          .send({ ...message, token: deviceToken });
-                      } catch (firebaseError) {
-                        console.error("Firebase error:", firebaseError);
-
-                        const removed = await removeInvalidFcmToken(
-                          deviceToken,
-                          firebaseError
-                        );
-                        if (!removed) {
-                          throw firebaseError;
-                        }
-                      }
-                    }
-                  );
-
-                  await Promise.all(firebasePromises);
+                  });
                 }
               }
 
