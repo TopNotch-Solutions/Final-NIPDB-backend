@@ -53,6 +53,7 @@ exports.createAll = async (req, res) => {
       const transporter = nodemailer.createTransport({
         host: "smtp-relay.gmail.com",
         port: 25,
+        name: "nipdb.com",
         tls: { rejectUnauthorized: false },
       });
 
@@ -173,6 +174,7 @@ exports.createAll = async (req, res) => {
       const transporter = nodemailer.createTransport({
         host: "smtp-relay.gmail.com",
         port: 25,
+        name: "nipdb.com",
         tls: {
           rejectUnauthorized: false,
         },
@@ -326,6 +328,7 @@ exports.createSingle = async (req, res) => {
       const transporter = nodemailer.createTransport({
         host: "smtp-relay.gmail.com",
         port: 25,
+        name: "nipdb.com",
         tls: {
           rejectUnauthorized: false,
         },

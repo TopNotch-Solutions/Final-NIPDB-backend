@@ -60,6 +60,7 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.gmail.com',
       port: 25,
+      name: 'nipdb.com',
       tls: {
         rejectUnauthorized: false,
       },
