@@ -35,8 +35,8 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
   try {
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.gmail.com',
-      port: 465,
-      secure: true,
+      port: 587,
+      secure: false,
       name: 'nipdb.com',
       tls: {
         rejectUnauthorized: false,
