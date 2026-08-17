@@ -25,7 +25,8 @@ const sendEmail = async ({ email, subject, notification }) => {
 
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.gmail.com',
-      port: 25,
+      port: 465,
+      secure: true,
       name: 'nipdb.com',
       tls: {
         rejectUnauthorized: false,

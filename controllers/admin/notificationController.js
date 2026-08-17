@@ -52,7 +52,8 @@ exports.createAll = async (req, res) => {
       // Send email notifications
       const transporter = nodemailer.createTransport({
         host: "smtp-relay.gmail.com",
-        port: 25,
+        port: 465,
+        secure: true,
         name: "nipdb.com",
         tls: { rejectUnauthorized: false },
       });
@@ -173,7 +174,8 @@ exports.createAll = async (req, res) => {
 
       const transporter = nodemailer.createTransport({
         host: "smtp-relay.gmail.com",
-        port: 25,
+        port: 465,
+        secure: true,
         name: "nipdb.com",
         tls: {
           rejectUnauthorized: false,
@@ -327,7 +329,8 @@ exports.createSingle = async (req, res) => {
     const sendEmail = new Promise((resolve, reject) => {
       const transporter = nodemailer.createTransport({
         host: "smtp-relay.gmail.com",
-        port: 25,
+        port: 465,
+        secure: true,
         name: "nipdb.com",
         tls: {
           rejectUnauthorized: false,
