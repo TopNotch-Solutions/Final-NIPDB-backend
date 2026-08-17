@@ -34,11 +34,11 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
     }
   try {
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.USERNAME,
-        pass: process.env.PASSWORD,
-      }
+      host: 'smtp-relay.gmail.com',
+      port: 25,
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
 
     let otp, hashedOTP, mailOptions, expiresAt, resetLink;
@@ -50,7 +50,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       expiresAt = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes
 
       mailOptions = {
-        from: process.env.USERNAME,
+        from: 'in4msme@nipdb.com',
         to: email,
         subject,
         html: `
@@ -130,7 +130,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
       mailOptions = {
-        from: process.env.USERNAME,
+        from: 'in4msme@nipdb.com',
         to: email,
         subject,
        html: `

@@ -24,11 +24,11 @@ const sendEmail = async ({ email, subject, notification }) => {
     }
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.USERNAME,
-        pass: process.env.PASSWORD,
-      }
+      host: 'smtp-relay.gmail.com',
+      port: 25,
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
 
     const templates = {
@@ -78,7 +78,7 @@ const sendEmail = async ({ email, subject, notification }) => {
     if (!templates[notification]) throw new Error("Notification type not recognized");
 
     const mailOptions = {
-      from: process.env.USERNAME,
+      from: 'in4msme@nipdb.com',
       to: email,
       subject,
       html: `

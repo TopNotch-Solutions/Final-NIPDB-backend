@@ -68,18 +68,15 @@ exports.signup = async (req, res) => {
     //   },
     // });
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      host: 'smtp.gmail.com',
-      port: 587,
-      secure: false,
-      auth:{
-        user: process.env.USERNAME,
-        pass: process.env.PASSWORD
-      }
+      host: 'smtp-relay.gmail.com',
+      port: 25,
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
 
     // const mailOptions = {
-    //   from: 'IN4MSME@nipdb.com',
+    //   from: 'in4msme@nipdb.com',
     //   to: email,
     //   subject: "IN4MSME Portal Onboarding",
     //   html: `<p>${newUser.firstName} ${newUser.lastName}, Here is your password <b>${password}</b>. Do not share it with anyone.</p>`,
@@ -87,7 +84,7 @@ exports.signup = async (req, res) => {
     const portalUrl = "http://41.219.71.112:8080";
 
     const mailOptions = {
-      from:  process.env.USERNAME,
+      from: 'in4msme@nipdb.com',
       to: email,
       subject: "IN4MSME Portal Onboarding",
       html: `

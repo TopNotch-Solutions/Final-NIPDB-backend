@@ -311,13 +311,10 @@ exports.create = async (req, res) => {
 
       if (adminEmails.length > 0) {
         const transporter = nodemailer.createTransport({
-          service: "gmail",
-          host: "smtp.gmail.com",
-          port: 587,
-          secure: false,
-          auth: {
-            user: process.env.USERNAME,
-            pass: process.env.PASSWORD,
+          host: 'smtp-relay.gmail.com',
+          port: 25,
+          tls: {
+            rejectUnauthorized: false,
           },
         });
 
@@ -325,7 +322,7 @@ exports.create = async (req, res) => {
         const businessName = businessDisplayName || businessRegistrationName;
 
         const mailOptions = {
-          from: process.env.USERNAME,
+          from: 'in4msme@nipdb.com',
           to: adminEmails,
           subject: "New Business Application Submitted",
           html: `

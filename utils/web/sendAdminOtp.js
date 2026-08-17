@@ -58,15 +58,15 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     await transaction.commit();
 
     const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.USERNAME,
-        pass: process.env.PASSWORD,
+      host: 'smtp-relay.gmail.com',
+      port: 25,
+      tls: {
+        rejectUnauthorized: false,
       },
     });
 
     await transporter.sendMail({
-      from: process.env.USERNAME,
+      from: 'in4msme@nipdb.com',
       to: email,
       subject,
       html: `
