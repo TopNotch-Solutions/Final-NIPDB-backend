@@ -61,7 +61,6 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
       host: 'smtp-relay.gmail.com',
       port: 587,
       secure: false,
-      name: 'nipdb.com',
       tls: {
         rejectUnauthorized: false,
       },

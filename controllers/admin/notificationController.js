@@ -54,7 +54,6 @@ exports.createAll = async (req, res) => {
         host: "smtp-relay.gmail.com",
         port: 587,
         secure: false,
-        name: "nipdb.com",
         tls: { rejectUnauthorized: false },
       });
 
@@ -176,7 +175,6 @@ exports.createAll = async (req, res) => {
         host: "smtp-relay.gmail.com",
         port: 587,
         secure: false,
-        name: "nipdb.com",
         tls: {
           rejectUnauthorized: false,
         },
@@ -331,7 +329,6 @@ exports.createSingle = async (req, res) => {
         host: "smtp-relay.gmail.com",
         port: 587,
         secure: false,
-        name: "nipdb.com",
         tls: {
           rejectUnauthorized: false,
         },

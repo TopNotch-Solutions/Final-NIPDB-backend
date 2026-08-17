@@ -27,7 +27,6 @@ const sendEmail = async ({ email, subject, notification }) => {
       host: 'smtp-relay.gmail.com',
       port: 587,
       secure: false,
-      name: 'nipdb.com',
       tls: {
         rejectUnauthorized: false,
       },

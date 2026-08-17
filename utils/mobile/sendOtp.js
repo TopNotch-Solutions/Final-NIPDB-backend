@@ -37,7 +37,6 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       host: 'smtp-relay.gmail.com',
       port: 587,
       secure: false,
-      name: 'nipdb.com',
       tls: {
         rejectUnauthorized: false,
       },

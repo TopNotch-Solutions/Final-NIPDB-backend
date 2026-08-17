@@ -314,7 +314,6 @@ exports.create = async (req, res) => {
           host: 'smtp-relay.gmail.com',
           port: 587,
           secure: false,
-          name: 'nipdb.com',
           tls: {
             rejectUnauthorized: false,
           },
