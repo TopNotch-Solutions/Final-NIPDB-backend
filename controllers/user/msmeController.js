@@ -312,7 +312,7 @@ exports.create = async (req, res) => {
       if (adminEmails.length > 0) {
         const transporter = nodemailer.createTransport({
           host: 'smtp-relay.gmail.com',
-          port: 587,
+          port: 25,
           secure: false,
           tls: {
             rejectUnauthorized: false,

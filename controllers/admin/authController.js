@@ -69,7 +69,7 @@ exports.signup = async (req, res) => {
     // });
     const transporter = nodemailer.createTransport({
       host: 'smtp-relay.gmail.com',
-      port: 587,
+      port: 25,
       secure: false,
       tls: {
         rejectUnauthorized: false,
