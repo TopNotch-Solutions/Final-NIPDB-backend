@@ -6,6 +6,7 @@ const transporter = nodemailer.createTransport({
   port: 587,
   secure: false, // STARTTLS
   pool: true,
+  name: "nipdb.com",
   maxConnections: 2,
   maxMessages: 100,
   tls: {
