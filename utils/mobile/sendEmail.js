@@ -1,4 +1,4 @@
-const nodemailer = require("nodemailer");
+const transporter = require("../shared/mailTransporter");
 require("dotenv").config();
 
 const sendEmail = async ({ email, subject, notification }) => {
@@ -22,15 +22,6 @@ const sendEmail = async ({ email, subject, notification }) => {
         message: "Email subject required fields",
       });
     }
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 25,
-      secure: false,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
 
     const templates = {
       pending: `

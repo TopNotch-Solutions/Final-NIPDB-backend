@@ -7,7 +7,7 @@ const User = require("../../models/user");
 const AdminNotification = require("../../models/adminNotifications");
 const MsmeInformation = require("../../models/msmeInformation");
 const sequelize = require("../../config/dbConfig");
-const nodemailer = require("nodemailer");
+const transporter = require("../../utils/shared/mailTransporter");
 const DeviceToken = require("../../models/deviceToken");
 const PushNotification = require("../../models/pushNotifications");
 const FcmToken = require("../../models/fcmToken");
@@ -48,14 +48,6 @@ exports.createAll = async (req, res) => {
       priority = CapitalizeFirstLetter(priority);
 
       const allUserEmails = await User.findAll({ attributes: ["email", "id"] });
-
-      // Send email notifications
-      const transporter = nodemailer.createTransport({
-        host: "smtp-relay.gmail.com",
-        port: 25,
-        secure: false,
-        tls: { rejectUnauthorized: false },
-      });
 
       allUserEmails.forEach((user) => {
         const mailOptions = {
@@ -168,15 +160,6 @@ exports.createAll = async (req, res) => {
           userId: {
             [Op.in]: businessUserIds,
           },
-        },
-      });
-
-      const transporter = nodemailer.createTransport({
-        host: "smtp-relay.gmail.com",
-        port: 25,
-        secure: false,
-        tls: {
-          rejectUnauthorized: false,
         },
       });
 
@@ -325,15 +308,6 @@ exports.createSingle = async (req, res) => {
     });
 
     const sendEmail = new Promise((resolve, reject) => {
-      const transporter = nodemailer.createTransport({
-        host: "smtp-relay.gmail.com",
-        port: 25,
-        secure: false,
-        tls: {
-          rejectUnauthorized: false,
-        },
-      });
-
       const mailOptions = {
         from: "in4msme@nipdb.com",
         to: user.email,

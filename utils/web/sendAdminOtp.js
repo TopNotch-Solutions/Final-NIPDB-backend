@@ -1,8 +1,8 @@
 const bcrypt = require("bcrypt");
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
 const sequelize = require("../../config/dbConfig");
 const OTP = require("../../models/otpVerification");
+const transporter = require("../shared/mailTransporter");
 require("dotenv").config();
 
 const generateOTP = () => {
@@ -56,15 +56,6 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     );
 
     await transaction.commit();
-
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 25,
-      secure: false,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
 
     await transporter.sendMail({
       from: 'in4msme@nipdb.com',

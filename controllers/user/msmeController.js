@@ -18,7 +18,7 @@ const sendEmail = require("../../utils/mobile/sendEmail");
 const fs = require("fs");
 const path = require("path");
 const sequelize = require("../../config/dbConfig");
-const nodemailer = require("nodemailer");
+const transporter = require("../../utils/shared/mailTransporter");
 
 exports.create = async (req, res) => {
   const { id } = req.user;
@@ -310,15 +310,6 @@ exports.create = async (req, res) => {
         .filter((emailValue) => emailValue.length > 0);
 
       if (adminEmails.length > 0) {
-        const transporter = nodemailer.createTransport({
-          host: 'smtp-relay.gmail.com',
-          port: 25,
-          secure: false,
-          tls: {
-            rejectUnauthorized: false,
-          },
-        });
-
         const submittedBy = `${checkExistingUser.firstName || ""} ${checkExistingUser.lastName || ""}`.trim();
         const businessName = businessDisplayName || businessRegistrationName;
 

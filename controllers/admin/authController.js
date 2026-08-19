@@ -6,7 +6,7 @@ const {
 const generateRandomString = require("../../utils/shared/generateRandomString");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 const bcrypt = require("bcrypt");
-const nodemailer = require("nodemailer");
+const transporter = require("../../utils/shared/mailTransporter");
 const sendOTPVerification = require("../../utils/mobile/sendOtp");
 const User = require("../../models/user");
 const OTP = require("../../models/otpVerification");
@@ -60,28 +60,6 @@ exports.signup = async (req, res) => {
       role: formattedRole,
     });
     console.log("here is the password", password)
-    // const transporter = nodemailer.createTransport({
-    //   host: 'smtp-relay.gmail.com',
-    //   port: 25,
-    //   tls: {
-    //     rejectUnauthorized: false,
-    //   },
-    // });
-    const transporter = nodemailer.createTransport({
-      host: 'smtp-relay.gmail.com',
-      port: 25,
-      secure: false,
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
-
-    // const mailOptions = {
-    //   from: 'in4msme@nipdb.com',
-    //   to: email,
-    //   subject: "IN4MSME Portal Onboarding",
-    //   html: `<p>${newUser.firstName} ${newUser.lastName}, Here is your password <b>${password}</b>. Do not share it with anyone.</p>`,
-    // };
     const portalUrl = "http://41.219.71.112:8080";
 
     const mailOptions = {
