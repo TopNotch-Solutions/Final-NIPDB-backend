@@ -19,6 +19,8 @@ const fs = require("fs");
 const path = require("path");
 const sequelize = require("../../config/dbConfig");
 const transporter = require("../../utils/shared/mailTransporter");
+const BusinessReport = require("../../models/businessReport");
+const { ALLOWED_REPORT_TITLES } = BusinessReport;
 
 exports.create = async (req, res) => {
   const { id } = req.user;
@@ -1923,6 +1925,101 @@ exports.visibility = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error("Error updating business visibility:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.report = async (req, res) => {
+  const userId = req.user?.id;
+  const { businessId, title, description } = req.body;
+
+  if (!userId) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "User ID is required.",
+    });
+  }
+
+  if (!businessId || !title || description === undefined || description === null) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "businessId, title and description are required.",
+    });
+  }
+
+  if (!ALLOWED_REPORT_TITLES.includes(title)) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Invalid report title.",
+      allowedTitles: ALLOWED_REPORT_TITLES,
+    });
+  }
+
+  const sanitizedDescription = String(description).trim();
+  if (!sanitizedDescription) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "description cannot be empty.",
+    });
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const existingUser = await User.findOne({
+      where: { id: userId },
+      transaction,
+    });
+
+    if (!existingUser) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "User does not exist.",
+      });
+    }
+
+    const existingBusiness = await MsmeInformation.findOne({
+      where: { id: businessId },
+      transaction,
+    });
+
+    if (!existingBusiness) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Business does not exist.",
+      });
+    }
+
+    const report = await BusinessReport.create(
+      {
+        userId,
+        businessId,
+        title,
+        description: sanitizedDescription,
+        read: false,
+        readBy: null,
+        readAt: null,
+      },
+      { transaction }
+    );
+
+    await transaction.commit();
+
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "Report submitted successfully.",
+      data: report,
+    });
+  } catch (error) {
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
+    console.error("Error submitting business report:", error);
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,

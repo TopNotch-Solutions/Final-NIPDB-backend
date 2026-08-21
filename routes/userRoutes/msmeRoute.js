@@ -15,6 +15,7 @@ const updateImage6Middleware = require('../../middlewares/shared/updateImage6Mid
 msmeUserRouter.post('/create', tokenAuthMiddleware, checkUser, msmeUploadMiddleware.uploadMultiple, msmeUserController.create);
 msmeUserRouter.post('/like/:businessId', tokenAuthMiddleware, checkUser,  msmeUserController.like);
 msmeUserRouter.post('/unlike/:businessId',tokenAuthMiddleware, checkUser,  msmeUserController.unlike);
+msmeUserRouter.post('/report', tokenAuthMiddleware, checkUser, msmeUserController.report);
 
 msmeUserRouter.get('/all/business', appTokenMiddleware, checkAppUser, msmeUserController.all);
 msmeUserRouter.get('/filter/industry/:industryName', appTokenMiddleware,checkAppUser, msmeUserController.filterByIndustry);

@@ -47,6 +47,7 @@ const { where } = require("sequelize");
 const CapitalizeFirstLetter = require("./utils/shared/capitalizeFirstLetter");
 const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
+const BusinessReport = require("./models/businessReport");
 const { sendFcmToTokens } = require("./utils/shared/fcmMessaging");
 
 const app = express();

@@ -12,6 +12,12 @@ msmeAdminRouter.get('/all/pending',tokenAuthMiddleware, checkAdmin, msmeAdminCon
 msmeAdminRouter.get('/all/rejected',tokenAuthMiddleware, checkAdmin, msmeAdminController.allRejected);
 msmeAdminRouter.get('/all/incomplete',tokenAuthMiddleware, checkAdmin, msmeAdminController.allIncomplete);
 msmeAdminRouter.get('/all/blocked',tokenAuthMiddleware, checkAdmin, msmeAdminController.allBlocked);
+msmeAdminRouter.get('/reports', tokenAuthMiddleware, checkAdmin, msmeAdminController.allReports);
+msmeAdminRouter.get('/reports/unread', tokenAuthMiddleware, checkAdmin, msmeAdminController.unreadReports);
+msmeAdminRouter.get('/reports/read', tokenAuthMiddleware, checkAdmin, msmeAdminController.readReports);
+msmeAdminRouter.get('/reports/unreadCount', tokenAuthMiddleware, checkAdmin, msmeAdminController.unreadReportsCount);
+msmeAdminRouter.get('/reports/:id', tokenAuthMiddleware, checkAdmin, msmeAdminController.singleReport);
+msmeAdminRouter.put('/reports/:id/read', tokenAuthMiddleware, checkAdmin, msmeAdminController.markReportRead);
 msmeAdminRouter.get('/single/:id',tokenAuthMiddleware, checkAdmin, msmeAdminController.single);
 msmeAdminRouter.get('/single-msme/:id',tokenAuthMiddleware, checkAdmin, msmeAdminController.singleMsme);
 msmeAdminRouter.get('/totalCount',tokenAuthMiddleware, checkAdmin,  msmeAdminController.totalCount);

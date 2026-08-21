@@ -19,6 +19,32 @@ const Region = require("../../models/region");
 const Town = require("../../models/town");
 const FcmToken = require("../../models/fcmToken");
 const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
+const BusinessReport = require("../../models/businessReport");
+
+const reportInclude = [
+  {
+    model: User,
+    as: "reporter",
+    attributes: ["id", "firstName", "lastName", "email", "profileImage"],
+  },
+  {
+    model: MsmeInformation,
+    as: "business",
+    attributes: [
+      "id",
+      "businessRegistrationName",
+      "businessDisplayName",
+      "userId",
+      "status",
+    ],
+  },
+  {
+    model: Admin,
+    as: "readByAdmin",
+    attributes: ["id", "firstName", "lastName", "email"],
+    required: false,
+  },
+];
 
 exports.create = async (req, res) => {
   let {
@@ -1414,6 +1440,200 @@ exports.block = async (req, res) => {
   } catch (error) {
     await transaction.rollback();
     console.error("Internal server error:", error.message);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.allReports = async (req, res) => {
+  try {
+    const reports = await BusinessReport.findAll({
+      include: reportInclude,
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "All business reports retrieved successfully.",
+      data: reports,
+    });
+  } catch (error) {
+    console.error("Error retrieving business reports:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.unreadReports = async (req, res) => {
+  try {
+    const reports = await BusinessReport.findAll({
+      where: { read: false },
+      include: reportInclude,
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Unread business reports retrieved successfully.",
+      data: reports,
+    });
+  } catch (error) {
+    console.error("Error retrieving unread business reports:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.readReports = async (req, res) => {
+  try {
+    const reports = await BusinessReport.findAll({
+      where: { read: true },
+      include: reportInclude,
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Read business reports retrieved successfully.",
+      data: reports,
+    });
+  } catch (error) {
+    console.error("Error retrieving read business reports:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.unreadReportsCount = async (req, res) => {
+  try {
+    const count = await BusinessReport.count({ where: { read: false } });
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Unread business reports count retrieved successfully.",
+      data: { count },
+    });
+  } catch (error) {
+    console.error("Error counting unread business reports:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.singleReport = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Report ID is required.",
+      });
+    }
+
+    const report = await BusinessReport.findOne({
+      where: { id },
+      include: reportInclude,
+    });
+
+    if (!report) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Report not found.",
+      });
+    }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Business report retrieved successfully.",
+      data: report,
+    });
+  } catch (error) {
+    console.error("Error retrieving business report:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal server error: " + error.message,
+    });
+  }
+};
+
+exports.markReportRead = async (req, res) => {
+  const adminId = req.user?.id;
+  const { id } = req.params;
+
+  if (!adminId) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Admin ID is required.",
+    });
+  }
+
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Report ID is required.",
+    });
+  }
+
+  const transaction = await sequelize.transaction();
+
+  try {
+    const report = await BusinessReport.findOne({
+      where: { id },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
+    });
+
+    if (!report) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Report not found.",
+      });
+    }
+
+    const alreadyRead = report.read;
+
+    if (!alreadyRead) {
+      await report.update(
+        {
+          read: true,
+          readBy: adminId,
+          readAt: new Date(),
+        },
+        { transaction }
+      );
+    }
+
+    await transaction.commit();
+
+    const updatedReport = await BusinessReport.findOne({
+      where: { id },
+      include: reportInclude,
+    });
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: alreadyRead
+        ? "Report was already marked as read."
+        : "Report marked as read successfully.",
+      data: updatedReport,
+    });
+  } catch (error) {
+    if (!transaction.finished) {
+      await transaction.rollback();
+    }
+    console.error("Error marking business report as read:", error);
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error: " + error.message,
