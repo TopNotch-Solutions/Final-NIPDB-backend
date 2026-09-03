@@ -817,17 +817,10 @@ exports.forgotPasswordNewPassword = async (req, res) => {
         data: null,
       });
     }
-    const isMatch = await bcrypt.compare(currentPassword, existingUser.password);
-    if (!isMatch) {
-      return res.status(401).json({
-        status: "FAILURE",
-        message: "Invalid current password.",
-      });
-    }
-
 
     const isSameAsOld = await bcrypt.compare(newPassword, existingUser.password);
     if (isSameAsOld) {
+      await t.rollback();
       return res.status(400).json({
         status: "FAILURE",
         message: "New password cannot be the same as your current password.",
