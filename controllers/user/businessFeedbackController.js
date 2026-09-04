@@ -4,6 +4,7 @@ const User = require("../../models/user");
 const MsmeInformation = require("../../models/msmeInformation");
 const BusinessRating = require("../../models/businessRating");
 const BusinessReview = require("../../models/businessReview");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 const buildBusinessRatingSummary = async (businessId, transaction = null) => {
   const [averageRow, totalCount, groupedRows] = await Promise.all([
@@ -85,13 +86,13 @@ exports.submitBusinessFeedback = async (req, res) => {
     if (!business) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "Business not found.",
+        message: "We couldn't find a record matching the business information provided.",
       });
     }
     if (userId && !user) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "User not found.",
+        message: "No account matches the provided details.",
       });
     }
 
@@ -135,10 +136,11 @@ exports.submitBusinessFeedback = async (req, res) => {
       data: ratingSummary,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/businessFeedbackController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -163,7 +165,7 @@ exports.getBusinessFeedback = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Business not found.",
+        message: "We couldn't find a record matching the business information provided.",
       });
     }
 
@@ -200,10 +202,11 @@ exports.getBusinessFeedback = async (req, res) => {
       },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/businessFeedbackController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

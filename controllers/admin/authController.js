@@ -14,6 +14,7 @@ const { Op, where } = require("sequelize");
 const sendAdminOTPVerification = require("../../utils/web/sendAdminOtp");
 const sequelize = require("../../config/dbConfig");
 require("dotenv").config();
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.signup = async (req, res) => {
   const { firstName, lastName, email, department, contactNumber, role } =
@@ -146,21 +147,17 @@ exports.signup = async (req, res) => {
 `,
     };
 
-    transporter.sendMail(mailOptions, async (error, info) => {
-      if (error) {
-        console.error("Email error:", error);
-        await Admin.destroy({ where: { email } });
-        return res.status(500).json({
-          status: "FAILURE",
-          message: "Internal server error: " + error.message,
-        });
-      }
-      res.status(201).json({
-        status: "SUCCESS",
-        message: "User successfully inserted. Email sent",
-      });
+    transporter.sendMail(mailOptions).catch((error) => {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
+      console.error("Email error:", error);
+    });
+
+    return res.status(201).json({
+      status: "SUCCESS",
+      message: "User successfully inserted. Email sent",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     console.error("Signup error:", error);
     res
       .status(500)
@@ -212,6 +209,7 @@ exports.login = async (req, res) => {
           .json({ status: "FAILURE", message: "Invalid credentials",isAuthenticated: false });
       }
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
       console.error(error);
       res
         .status(500)
@@ -345,6 +343,7 @@ exports.currentUser = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     console.error(error);
     res
       .status(500)
@@ -381,6 +380,7 @@ exports.adminEmail = async (req, res) => {
       data: existingAdmin,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     console.error("Error retrieving admin details:", error);
     return res.status(500).json({
       status: "FAILURE",
@@ -413,6 +413,7 @@ exports.forgotPassword = async (req, res) => {
       subject,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error" });
@@ -484,6 +485,7 @@ exports.changePassword = async (req, res) => {
       message: "User Password successfully updated",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: `Internal Server Error: ${error} ` });
@@ -544,6 +546,7 @@ exports.newPassword = async (req, res) => {
       message: "Password has been reset successfully.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res.status(500).json({
       status: "FAILURE",
       message: `Internal Server Error: ${error.message}`,
@@ -614,6 +617,7 @@ exports.details = async (req, res) => {
       currentUser: newUser,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error" });
@@ -681,6 +685,7 @@ exports.detailsUser = async (req, res) => {
       currentUser: newUser,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error" });
@@ -740,6 +745,7 @@ exports.profileImage = async (req, res) => {
       profileImage: newUser.profileImage,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error" });
@@ -751,6 +757,7 @@ exports.logout = async (req, res) => {
     res.cookie("refreshToken", "", { maxAge: 1 });
     res.status(200).json({ status: "SUCCESS", message: "User logged out" });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error" });
@@ -786,6 +793,7 @@ exports.delete = async (req, res) => {
       message: "Admin successfully deleted",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/authController.js" });
     console.error("Error deleting admin:", error);
     return res
       .status(500)

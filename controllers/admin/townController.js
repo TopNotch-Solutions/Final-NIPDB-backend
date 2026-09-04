@@ -1,6 +1,7 @@
 const sequelize = require("../../config/dbConfig");
 const Town = require("../../models/town");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   let { townName, regionId } = req.body;
@@ -45,6 +46,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/townController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
@@ -63,6 +65,7 @@ exports.all = async (req, res) => {
       data: towns
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/townController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -97,6 +100,7 @@ exports.single = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/townController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",

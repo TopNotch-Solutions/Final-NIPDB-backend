@@ -1,4 +1,5 @@
 const Town = require("../../models/town");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.all = async (req, res) => {
   try {
@@ -18,10 +19,11 @@ exports.all = async (req, res) => {
       data: towns,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/townController.js" });
     console.error("Fetch All Towns Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -54,10 +56,11 @@ exports.single = async (req, res) => {
       data: town,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/townController.js" });
     console.error("Fetch Single Town Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -89,10 +92,11 @@ exports.getTownsByRegion = async (req, res) => {
       data: towns,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/townController.js" });
     console.error("Fetch Towns by Region Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

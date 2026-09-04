@@ -1,5 +1,6 @@
 const Sequelize = require('sequelize');
 require('dotenv').config();
+const sendErrorAlert = require('../utils/shared/sendErrorAlert.js');
 
 const sequelize = new Sequelize({
     host: process.env.DB_HOST,
@@ -35,6 +36,7 @@ function monitorPool(sequelize) {
                 `[POOL STATS] used: ${used}, free: ${free}, pending: ${pending}, size: ${size}`
             );
         } catch (err) {
+    sendErrorAlert(err, { source: "config/dbConfig.js" });
             console.error("Error reading pool stats:", err.message);
         }
     }, 10000); // log every 10 seconds

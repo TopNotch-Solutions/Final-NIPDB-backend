@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const sequelize = require("../../config/dbConfig");
 const OTP = require("../../models/otpVerification");
 const transporter = require("../shared/mailTransporter");
+const sendErrorAlert = require("../shared/sendErrorAlert");
 require("dotenv").config();
 
 const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
@@ -218,7 +219,10 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       throw dbError;
     }
 
-    await transporter.sendMail(mailOptions);
+    transporter.sendMail(mailOptions).catch((mailError) => {
+    sendErrorAlert(mailError, { source: "utils/mobile/sendOtp.js" });
+      console.error("Failed to send OTP email:", mailError.message);
+    });
 
     // 🔹 Prepare professional API response
     const message = subject === "In4MSME Account Verification"
@@ -239,6 +243,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
     return res.status(200).json(response);
 
   } catch (error) {
+    sendErrorAlert(error, { source: "utils/mobile/sendOtp.js" });
     console.error("OTP Service Error:", {
       message: error.message,
       stack: error.stack
@@ -246,7 +251,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
 
     return res.status(503).json({
       status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

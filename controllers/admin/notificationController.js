@@ -13,6 +13,7 @@ const PushNotification = require("../../models/pushNotifications");
 const FcmToken = require("../../models/fcmToken");
 const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
 const { role } = require("./userController");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.createAll = async (req, res) => {
   try {
@@ -56,9 +57,9 @@ exports.createAll = async (req, res) => {
           subject: title,
           html: `<p>Dear Entrepreneur,<br><br>${notification}.<br><br>Kind regards,<br>NIPDB</p>`,
         };
-        transporter.sendMail(mailOptions, (error) => {
-          if (error)
-            console.error(`Failed to send email to ${user.email}:`, error);
+        transporter.sendMail(mailOptions).catch((error) => {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
+          console.error(`Failed to send email to ${user.email}:`, error);
         });
       });
 
@@ -171,15 +172,9 @@ exports.createAll = async (req, res) => {
           html: `<p>Dear Entrepreneur,<br><br>${notification}.<br><br>Kind Regards,<br>NIPDB</p>`,
         };
 
-        transporter.sendMail(mailOptions, function (error, info) {
-          if (error) {
-            if (!res.headersSent) {
-              return res.status(500).json({
-                status: "FAILURE",
-                message: "Internal server error: " + error.message,
-              });
-            }
-          }
+        transporter.sendMail(mailOptions).catch((error) => {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
+          console.error(`Failed to send email to ${user.email}:`, error);
         });
       }
 
@@ -224,9 +219,10 @@ exports.createAll = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -307,25 +303,17 @@ exports.createSingle = async (req, res) => {
       priority,
     });
 
-    const sendEmail = new Promise((resolve, reject) => {
-      const mailOptions = {
-        from: "in4msme@nipdb.com",
-        to: user.email,
-        subject: `${title}`,
-        html: `<p>Dear Entrepreneur,<br><br> ${notification}.<br><br>Kind Regards,<br>NIPDB</p>`,
-      };
+    const mailOptions = {
+      from: "in4msme@nipdb.com",
+      to: user.email,
+      subject: `${title}`,
+      html: `<p>Dear Entrepreneur,<br><br> ${notification}.<br><br>Kind Regards,<br>NIPDB</p>`,
+    };
 
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error("Email error:", error);
-          reject(new Error("Failed to send email"));
-        } else {
-          resolve(info);
-        }
-      });
+    transporter.sendMail(mailOptions).catch((error) => {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
+      console.error("Email error:", error);
     });
-
-    await sendEmail;
 
     if (deviceTokens.length > 0) {
       await sendFcmToTokens(deviceTokens, {
@@ -336,19 +324,20 @@ exports.createSingle = async (req, res) => {
 
       return res.status(200).json({
         status: "SUCCESS",
-        message: "Notification sent to user and email delivered.",
+        message: "Notification sent to user and email queued.",
       });
     } else {
       return res.status(200).json({
         status: "SUCCESS",
-        message: "Email delivered successfully, no Firebase token found.",
+        message: "Email queued successfully, no Firebase token found.",
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     console.error("Internal error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -368,9 +357,10 @@ exports.allAdminNotfication = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -397,9 +387,10 @@ exports.allSentByAdmin = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -430,9 +421,10 @@ exports.singleSentByAdmin = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -464,9 +456,10 @@ exports.allUnRead = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -498,9 +491,10 @@ exports.allRead = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -531,9 +525,10 @@ exports.singleAdminNotfication = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -575,9 +570,10 @@ exports.single = async (req, res) => {
       data: allUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -610,9 +606,10 @@ exports.totalCount = async (req, res) => {
       count: totalCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -664,9 +661,10 @@ exports.updateViewed = async (req, res) => {
       message: "Notification successfully updated!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -715,9 +713,10 @@ exports.deleteSingle = async (req, res) => {
       message: "Notification successfully deleted!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/notificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

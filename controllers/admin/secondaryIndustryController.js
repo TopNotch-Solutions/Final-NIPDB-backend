@@ -2,6 +2,7 @@ const { where } = require("sequelize");
 const SecondaryIndustry = require("../../models/secondaryIndustry");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 const sequelize = require("../../config/dbConfig");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   let { industryName } = req.body;
@@ -36,10 +37,11 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/secondaryIndustryController.js" });
     await t.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -53,9 +55,10 @@ exports.all = async (req, res) => {
       data: industries || [],
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/secondaryIndustryController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -85,9 +88,10 @@ exports.single = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/secondaryIndustryController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -141,10 +145,11 @@ exports.update = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/secondaryIndustryController.js" });
     await t.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -177,10 +182,11 @@ exports.delete = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/secondaryIndustryController.js" });
     await t.rollback();
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

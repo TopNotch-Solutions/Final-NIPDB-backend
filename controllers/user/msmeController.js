@@ -20,6 +20,7 @@ const path = require("path");
 const sequelize = require("../../config/dbConfig");
 const transporter = require("../../utils/shared/mailTransporter");
 const BusinessReport = require("../../models/businessReport");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 const { ALLOWED_REPORT_TITLES } = BusinessReport;
 
 exports.create = async (req, res) => {
@@ -164,8 +165,24 @@ exports.create = async (req, res) => {
       await transaction.rollback();
       return res.status(409).json({
         status: "FAILURE",
-        message: "Business name already in use.",
+        message: "A company is already registered under this name in our system.",
       });
+    }
+
+    if (businessRegistrationNumber) {
+      const alreadyExistNumber = await MsmeInformation.findOne({
+        where: { businessRegistrationNumber },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (alreadyExistNumber) {
+        await transaction.rollback();
+        return res.status(409).json({
+          status: "FAILURE",
+          message: "A business with this registration number already exists.",
+        });
+      }
     }
 
     const newBusiness = await MsmeInformation.create(
@@ -355,9 +372,13 @@ exports.create = async (req, res) => {
 `,
         };
 
-        await transporter.sendMail(mailOptions);
+        transporter.sendMail(mailOptions).catch((mailError) => {
+          sendErrorAlert(mailError, { source: "controllers/user/msmeController.js" });
+          console.error("Failed to send new business notification email to admin:", mailError);
+        });
       }
     } catch (mailError) {
+      sendErrorAlert(mailError, { source: "controllers/user/msmeController.js" });
       console.error("Failed to send new business notification email to admin:", mailError);
     }
 
@@ -373,6 +394,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Create Business Error:", error);
@@ -464,6 +486,7 @@ exports.like = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Like Error:", error);
@@ -547,6 +570,7 @@ exports.unlike = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Unlike Error:", error);
@@ -613,6 +637,7 @@ exports.all = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Fetch MSME Error:", error);
@@ -702,6 +727,7 @@ exports.filterByIndustry = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Filter By Industry Error:", error);
@@ -749,6 +775,7 @@ exports.recentlyAdded = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Recently Added MSME Error:", error);
@@ -831,6 +858,7 @@ exports.allRegionBusiness = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("All Region Business Error:", error);
@@ -911,6 +939,7 @@ exports.allTownBusiness = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("All Town Business Error:", error);
@@ -1011,6 +1040,7 @@ exports.allLiked = async (req, res) => {
       data: rows,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("All Liked MSME Error:", error);
@@ -1057,6 +1087,7 @@ exports.isBusinessLiked = async (req, res) => {
       data: { isLiked: !!isLikedRecord },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
 
     console.error("Business Like Status Error:", error);
@@ -1098,7 +1129,7 @@ exports.isVisible = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Business not found.",
+        message: "We couldn't find a record matching the business information provided.",
       });
     }
 
@@ -1111,6 +1142,7 @@ exports.isVisible = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Error retrieving business visibility:", error);
     return res.status(500).json({
@@ -1177,6 +1209,7 @@ exports.allSingleUserMsme = async (req, res) => {
       data: rows,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("All Single User MSME Error:", error);
 
@@ -1234,6 +1267,7 @@ exports.single = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Single MSME Error:", error);
 
@@ -1292,6 +1326,7 @@ exports.singleRejected = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Single Rejected MSME Error:", error);
 
@@ -1321,7 +1356,7 @@ exports.update = async (req, res) => {
       await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "Business not found.",
+        message: "We couldn't find a record matching the business information provided.",
       });
     }
 
@@ -1380,7 +1415,7 @@ exports.update = async (req, res) => {
         await transaction.rollback();
         return res.status(409).json({
           status: "FAILURE",
-          message: "Business registration number already in use.",
+          message: "A business with this registration number already exists.",
         });
       }
     }
@@ -1490,15 +1525,16 @@ exports.update = async (req, res) => {
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Business successfully updated!",
+      message: "Your business details have been updated successfully.",
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Business Update Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1545,9 +1581,10 @@ exports.updateTest = async (req, res) => {
       message: "Success",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1632,11 +1669,12 @@ exports.updateLogo = async (req, res) => {
       message: "Business logo successfully updated.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Error updating business logo:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1717,11 +1755,12 @@ const updateBusinessImage = async (req, res, imageField) => {
       message: `${imageField} successfully updated.`,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error(`Error updating ${imageField}:`, error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1789,11 +1828,12 @@ exports.businessHours = async (req, res) => {
       message: "Business hours updated successfully.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Error updating business hours:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1857,11 +1897,12 @@ exports.delete = async (req, res) => {
       message: "Business and all associated records and images successfully deleted.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await t.rollback();
     console.error("Error deleting business:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1923,11 +1964,12 @@ exports.visibility = async (req, res) => {
       message: `Business visibility successfully updated to ${visibility}.`,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     await transaction.rollback();
     console.error("Error updating business visibility:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -2016,13 +2058,14 @@ exports.report = async (req, res) => {
       data: report,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/msmeController.js" });
     if (!transaction.finished) {
       await transaction.rollback();
     }
     console.error("Error submitting business report:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

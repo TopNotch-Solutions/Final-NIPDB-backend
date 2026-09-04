@@ -1,6 +1,7 @@
 const sequelize = require("../../config/dbConfig");
 const Region = require("../../models/region");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   let { regionName } = req.body;
@@ -38,6 +39,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/regionController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
@@ -56,6 +58,7 @@ exports.all = async (req, res) => {
       data: regions
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/regionController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -91,6 +94,7 @@ exports.single = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/regionController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",

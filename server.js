@@ -49,6 +49,7 @@ const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
 const BusinessReport = require("./models/businessReport");
 const { sendFcmToTokens } = require("./utils/shared/fcmMessaging");
+const sendErrorAlert = require('./utils/shared/sendErrorAlert');
 
 const app = express();
 const server = http.createServer(app);
@@ -238,6 +239,7 @@ const onSocketEvent = (socket, eventName, handler) => {
     try {
       await handler(payload, ack, callback);
     } catch (error) {
+    sendErrorAlert(error, { source: "server.js" });
       console.error(`Socket event error: ${eventName}`, error);
       ack.failure(error.message || "Internal server error");
     }
@@ -402,6 +404,7 @@ io.on("connection", (socket) => {
           }
         }
       } catch (error) {
+    sendErrorAlert(error, { source: "server.js" });
         console.error("Error sending notifications:", error);
       }
     }
@@ -836,8 +839,9 @@ io.on("connection", (socket) => {
         }
         ack.success({ message: "Message processed successfully" });
       } catch (error) {
+    sendErrorAlert(error, { source: "server.js" });
         console.error("Error sending notifications:", error);
-        ack.failure("Internal server error: " + error.message);
+        ack.failure("Something went wrong on our end. Please try again in a few moments.");
       }
     }
   );
@@ -1163,8 +1167,9 @@ io.on("connection", (socket) => {
         }
         ack.success({ message: "Message processed successfully" });
       } catch (error) {
+    sendErrorAlert(error, { source: "server.js" });
         console.error("Error sending notifications:", error);
-        ack.failure("Internal server error: " + error.message);
+        ack.failure("Something went wrong on our end. Please try again in a few moments.");
       }
     }
   );
@@ -1238,10 +1243,11 @@ io.on("connection", (socket) => {
         data: conversation,
       });
     } catch (error) {
+    sendErrorAlert(error, { source: "server.js" });
       if (typeof callback === "function") {
         callback({
           status: "FAILURE",
-          message: "Internal server error: " + error.message,
+          message: "Something went wrong on our end. Please try again in a few moments.",
         });
       }
     }
@@ -1259,7 +1265,7 @@ io.on("connection", (socket) => {
           });
 
           if (!checkNewUserExist) {
-            console.error("User not found.");
+            console.error("No account matches the provided details.");
             return;
           }
           const users = await Admin.findAll({
@@ -1308,6 +1314,7 @@ io.on("connection", (socket) => {
           }
         }
       } catch (error) {
+    sendErrorAlert(error, { source: "server.js" });
         console.error("Error sending notifications:", error);
       }
     }
@@ -1330,6 +1337,7 @@ sequelize
     });
   })
   .catch((error) => {
+    sendErrorAlert(error, { source: "server.js" });
     console.error("Error synchronizing database:", error);
   });
 

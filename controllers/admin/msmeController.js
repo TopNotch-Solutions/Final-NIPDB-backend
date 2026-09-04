@@ -20,6 +20,7 @@ const Town = require("../../models/town");
 const FcmToken = require("../../models/fcmToken");
 const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
 const BusinessReport = require("../../models/businessReport");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 const reportInclude = [
   {
@@ -145,7 +146,17 @@ exports.create = async (req, res) => {
     });
 
     if (alreadyExist)
-      throw new Error("Business name already in use.");
+      throw new Error("A company is already registered under this name in our system.");
+
+    if (businessRegistrationNumber) {
+      const alreadyExistNumber = await MsmeInformation.findOne({
+        where: { businessRegistrationNumber },
+        transaction,
+      });
+
+      if (alreadyExistNumber)
+        throw new Error("A business with this registration number already exists.");
+    }
 
  
     const selectedRegion = await Region.findOne({
@@ -307,6 +318,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
@@ -328,9 +340,10 @@ exports.allUser = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -362,6 +375,7 @@ exports.all = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: error.message,
@@ -445,9 +459,10 @@ exports.allApproved = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -527,9 +542,10 @@ exports.allPending = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -609,9 +625,10 @@ exports.allRejected = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -692,9 +709,10 @@ exports.allIncomplete = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -775,9 +793,10 @@ exports.allBlocked = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -858,9 +877,10 @@ exports.single = async (req, res) => {
       data: formattedData,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -900,9 +920,10 @@ exports.singleMsme = async (req, res) => {
       data: msmeInformation,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -917,9 +938,10 @@ exports.totalCount = async (req, res) => {
       count: totalCount || 0,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -936,9 +958,10 @@ exports.pendingCount = async (req, res) => {
       count: totalCount || 0, 
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -955,9 +978,10 @@ exports.rejectedCount = async (req, res) => {
       count: totalCount || 0,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -974,9 +998,10 @@ exports.incompleteCount = async (req, res) => {
       count: totalCount || 0,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -993,9 +1018,10 @@ exports.approvedCount = async (req, res) => {
       count: totalCount || 0,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1044,10 +1070,11 @@ exports.topCategory = async (req, res) => {
       data: finalIndustries,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error fetching top industries:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1090,10 +1117,11 @@ exports.monthlyRegistration = async (req, res) => {
       data: monthsData,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error fetching monthly registration data:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1142,11 +1170,19 @@ exports.update = async (req, res) => {
     
 
     const business = await MsmeInformation.findOne({ where: { id: businessId }, transaction });
-    if (!business) { return res.status(404).json({ status: "FAILURE", message: "Business not found.", }); }
+    if (!business) { return res.status(404).json({ status: "FAILURE", message: "We couldn't find a record matching the business information provided.", }); }
 
     if (businessRegistrationName !== business.businessRegistrationName) {
       const alreadyExist = await MsmeInformation.findOne({ where: { businessRegistrationName }, transaction });
-      if (alreadyExist) { return res.status(404).json({ status: "FAILURE", message: "Business name already in use.", }); }
+      if (alreadyExist) { return res.status(404).json({ status: "FAILURE", message: "A company is already registered under this name in our system.", }); }
+    }
+
+    if (businessRegistrationNumber && businessRegistrationNumber !== business.businessRegistrationNumber) {
+      const alreadyExistNumber = await MsmeInformation.findOne({ where: { businessRegistrationNumber }, transaction });
+      if (alreadyExistNumber) {
+        await transaction.rollback();
+        return res.status(409).json({ status: "FAILURE", message: "A business with this registration number already exists." });
+      }
     }
 
     const selectedRegion = await Region.findOne({ where: { id: region }, transaction });
@@ -1243,14 +1279,15 @@ exports.update = async (req, res) => {
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Business successfully updated!",
+      message: "Your business details have been updated successfully.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     await transaction.rollback();
     console.error("Error updating business:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1343,14 +1380,15 @@ Kind Regards, NIPDB`,
     await transaction.commit();
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Status successfully changed! Notifications will be sent asynchronously.",
+      message: "Status successfully changed.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     await transaction.rollback();
     console.error("Error updating status:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1435,14 +1473,15 @@ exports.block = async (req, res) => {
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: `Business successfully ${block ? "blocked" : "unblocked"}! Notifications will be sent asynchronously.`,
+      message: `Business successfully ${block ? "blocked" : "unblocked"}`,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     await transaction.rollback();
     console.error("Internal server error:", error.message);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1460,10 +1499,11 @@ exports.allReports = async (req, res) => {
       data: reports,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error retrieving business reports:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1482,10 +1522,11 @@ exports.unreadReports = async (req, res) => {
       data: reports,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error retrieving unread business reports:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1504,10 +1545,11 @@ exports.readReports = async (req, res) => {
       data: reports,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error retrieving read business reports:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1522,10 +1564,11 @@ exports.unreadReportsCount = async (req, res) => {
       data: { count },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error counting unread business reports:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1559,10 +1602,11 @@ exports.singleReport = async (req, res) => {
       data: report,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     console.error("Error retrieving business report:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1630,13 +1674,14 @@ exports.markReportRead = async (req, res) => {
       data: updatedReport,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/msmeController.js" });
     if (!transaction.finished) {
       await transaction.rollback();
     }
     console.error("Error marking business report as read:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

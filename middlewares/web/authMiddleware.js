@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 require('dotenv').config();
 const { createWebToken } = require('../../utils/web/generateToken');
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert.js');
 
 module.exports.tokenAuthMiddleware = (req, res, next) => {
   const authHeader = req.header('x-access-token');
@@ -29,6 +30,7 @@ module.exports.tokenAuthMiddleware = (req, res, next) => {
     res.setHeader('x-access-token', `Bearer ${newToken}`);
     next();
   } catch (err) {
+    sendErrorAlert(err, { source: "middlewares/web/authMiddleware.js" });
     if (err instanceof jwt.TokenExpiredError) {
       
       res.setHeader('x-access-token', '');
@@ -67,6 +69,7 @@ module.exports.checkAdmin = (req, res, next) => {
     }
     next();
   } catch (err) {
+    sendErrorAlert(err, { source: "middlewares/web/authMiddleware.js" });
     return res.status(401).json({
       status: "FAILURE",
       message: "Invalid token.",

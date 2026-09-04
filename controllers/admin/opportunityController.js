@@ -3,6 +3,7 @@ const fs = require('fs');
 const Opportunity = require("../../models/opportunity");
 const path = require("path");
 const sequelize = require("../../config/dbConfig");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   let { description, user, link } = req.body;
@@ -69,6 +70,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/opportunityController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(process.cwd(), "public/opportunities", req.file.filename);
@@ -91,6 +93,7 @@ exports.all = async (req, res) => {
       data: allOpportunities
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/opportunityController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -123,6 +126,7 @@ exports.single = async (req, res) => {
       data: opportunity
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/opportunityController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -186,6 +190,7 @@ exports.update = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/opportunityController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(process.cwd(), "public/opportunities", req.file.filename);
@@ -240,6 +245,7 @@ exports.delete = async (req, res) => {
       message: "Opportunity successfully deleted!"
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/opportunityController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",

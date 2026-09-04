@@ -1,5 +1,6 @@
 const adminFirebase = require("../../config/firebaseConfig");
 const DeviceToken = require("../../models/deviceToken");
+const sendErrorAlert = require('./sendErrorAlert.js');
 const {
   isUsableFcmToken,
   removeInvalidFcmToken,
@@ -62,6 +63,7 @@ const removeStaleDeviceToken = async (deviceToken, firebaseError) => {
   try {
     await DeviceToken.destroy({ where: { deviceToken } });
   } catch (error) {
+    sendErrorAlert(error, { source: "utils/shared/fcmMessaging.js" });
     console.error("Failed to remove stale device token:", error.message);
   }
 
@@ -79,6 +81,7 @@ const sendFcmToToken = async (deviceToken, { title, body, data = {} }) => {
   try {
     return await adminFirebase.messaging().send(message);
   } catch (firebaseError) {
+    sendErrorAlert(firebaseError, { source: "utils/shared/fcmMessaging.js" });
     console.error("Firebase error:", firebaseError);
     await removeStaleDeviceToken(deviceToken, firebaseError);
     return null;

@@ -2,6 +2,7 @@ const { where } = require("sequelize");
 const PrimaryIndustry = require("../../models/primaryIndustry");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 const sequelize = require("../../config/dbConfig");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
    let { industryName, label } = req.body;
@@ -59,6 +60,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/primaryIndustryController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(process.cwd(), "public/primary-industries", req.file.filename);
@@ -81,6 +83,7 @@ exports.all = async (req, res) => {
       data: primaryIndustries
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/primaryIndustryController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -113,6 +116,7 @@ exports.single = async (req, res) => {
       data: primaryIndustry
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/primaryIndustryController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -176,6 +180,7 @@ exports.update = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/primaryIndustryController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",
@@ -228,6 +233,7 @@ exports.updateLogo = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/primaryIndustryController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(process.cwd(), "public/primary-industries", req.file.filename);
@@ -274,6 +280,7 @@ exports.delete = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/primaryIndustryController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",

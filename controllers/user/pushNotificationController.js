@@ -3,6 +3,7 @@ const PushNotification = require("../../models/pushNotifications");
 const User = require("../../models/user");
 const { viewed } = require("./directMessageController");
 const sequelize = require("../../config/dbConfig");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.allUserNotification = async (req, res) => {
   const { deviceToken } = req.params;
@@ -36,10 +37,11 @@ exports.allUserNotification = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/pushNotificationController.js" });
     console.error("Fetch Push Notifications Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -79,10 +81,11 @@ exports.unreadNotification = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/pushNotificationController.js" });
     console.error("Fetch Unread Notifications Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -118,9 +121,10 @@ exports.readNotification = async (req, res) => {
       data: readUserNotfication,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/pushNotificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -155,9 +159,10 @@ exports.totalNotficationCount = async (req, res) => {
       count: totalCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/pushNotificationController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -209,6 +214,7 @@ exports.updateViewed = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/pushNotificationController.js" });
     await transaction.rollback();
     console.error("Error updating viewed status:", error);
 
@@ -258,6 +264,7 @@ exports.deleteSingle = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/pushNotificationController.js" });
     await transaction.rollback();
     console.error("Error deleting notification:", error);
 

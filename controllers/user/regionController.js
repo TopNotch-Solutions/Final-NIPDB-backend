@@ -1,4 +1,5 @@
 const Region = require('../../models/region');
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.all = async (req, res) => {
   try {
@@ -18,10 +19,11 @@ exports.all = async (req, res) => {
       data: regions,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/regionController.js" });
     console.error("Fetch All Regions Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -54,10 +56,11 @@ exports.single = async (req, res) => {
       data: region,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/regionController.js" });
     console.error("Fetch Single Region Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

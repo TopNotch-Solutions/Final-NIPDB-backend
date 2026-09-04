@@ -1,5 +1,6 @@
 const transporter = require("../shared/mailTransporter");
 require("dotenv").config();
+const sendErrorAlert = require('../shared/sendErrorAlert.js');
 
 const sendEmail = async ({ email, subject, notification }) => {
 
@@ -94,13 +95,10 @@ const sendEmail = async ({ email, subject, notification }) => {
       `
     };
 
-     try {
-    await transporter.sendMail(mailOptions);
-    console.log(`Email (${notification}) sent successfully to ${email}`);
-  } catch (error) {
+  transporter.sendMail(mailOptions).catch((error) => {
+    sendErrorAlert(error, { source: "utils/mobile/sendEmail.js" });
     console.error("Failed to send email:", error.message);
-  }
-
+  });
 };
 
 module.exports = sendEmail;

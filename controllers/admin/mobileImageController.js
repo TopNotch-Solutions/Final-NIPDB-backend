@@ -2,6 +2,7 @@ const MobileImage = require("../../models/mobileImage");
 const path = require("path");
 const fs = require('fs');
 const sequelize = require("../../config/dbConfig");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   const { description } = req.body;
@@ -49,6 +50,7 @@ exports.create = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/mobileImageController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(process.cwd(), "public/mobile-images", req.file.filename);
@@ -71,6 +73,7 @@ exports.all = async (req, res) => {
       data: mobileImages,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/mobileImageController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -104,6 +107,7 @@ exports.single = async (req, res) => {
       data: mobileImage,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/mobileImageController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -160,6 +164,7 @@ exports.update = async (req, res) => {
       data: existingImage,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/mobileImageController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(process.cwd(), "public/mobile-images", req.file.filename);
@@ -215,6 +220,7 @@ exports.delete = async (req, res) => {
       message: "Image successfully deleted!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/mobileImageController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",

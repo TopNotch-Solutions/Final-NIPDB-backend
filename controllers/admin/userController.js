@@ -1,6 +1,7 @@
 const { where } = require("sequelize");
 const Admin = require("../../models/admin");
 const User = require("../../models/user");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.allAdminList = async (req, res) => {
     try{
@@ -12,9 +13,10 @@ exports.allAdminList = async (req, res) => {
       data: allAdmins || [],
     });
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
         res.status(500).json({
           status: "FAILURE",
-          message: "Internal server error: " + error.message,
+          message: "Something went wrong on our end. Please try again in a few moments.",
         });
       }
 }
@@ -31,9 +33,10 @@ exports.allAdminListDownload = async (req, res) => {
     });
       
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
       res.status(500).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "Something went wrong on our end. Please try again in a few moments.",
       });
     }
 }
@@ -50,9 +53,10 @@ exports.allSystemUser = async (req, res) => {
     });
        
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
       res.status(500).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "Something went wrong on our end. Please try again in a few moments.",
       });
     }
 }
@@ -67,9 +71,10 @@ exports.superAdmincount = async (req, res) => {
     });
        
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
       res.status(500).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "Something went wrong on our end. Please try again in a few moments.",
       });
     }
 }
@@ -84,9 +89,10 @@ exports.allAdmincount = async (req, res) => {
     });
        
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
       res.status(500).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "Something went wrong on our end. Please try again in a few moments.",
       });
     }
 }
@@ -101,9 +107,10 @@ exports.appUserCount = async (req, res) => {
     });
        
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
       res.status(500).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "Something went wrong on our end. Please try again in a few moments.",
       });
     }
 }

@@ -1,4 +1,5 @@
 const BSO = require("../../models/bso");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.all = async (req, res) => {
     try {
@@ -16,9 +17,10 @@ exports.all = async (req, res) => {
         });
       }
     } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/bsoController.js" });
       res.status(500).json({
         status: "FAILURE",
-        message: "Internal server error: " + error.message,
+        message: "Something went wrong on our end. Please try again in a few moments.",
       });
     }
   };
@@ -50,6 +52,7 @@ exports.all = async (req, res) => {
       data: bso,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/bsoController.js" });
     console.error(`Error fetching BSO with ID ${req.params.id}:`, error);
     return res.status(500).json({
       status: "FAILURE",

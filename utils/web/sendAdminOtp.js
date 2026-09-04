@@ -3,6 +3,7 @@ const crypto = require("crypto");
 const sequelize = require("../../config/dbConfig");
 const OTP = require("../../models/otpVerification");
 const transporter = require("../shared/mailTransporter");
+const sendErrorAlert = require("../shared/sendErrorAlert");
 require("dotenv").config();
 
 const generateOTP = () => {
@@ -57,11 +58,12 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
 
     await transaction.commit();
 
-    await transporter.sendMail({
-      from: 'in4msme@nipdb.com',
-      to: email,
-      subject,
-      html: `
+    transporter
+      .sendMail({
+        from: 'in4msme@nipdb.com',
+        to: email,
+        subject,
+        html: `
 <!DOCTYPE html>
 <html>
 <head>
@@ -128,7 +130,11 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
 </body>
 </html>
 `
-    });
+      })
+      .catch((mailError) => {
+    sendErrorAlert(mailError, { source: "utils/web/sendAdminOtp.js" });
+        console.error("Failed to send admin OTP email:", mailError.message);
+      });
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -138,6 +144,7 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "utils/web/sendAdminOtp.js" });
     if (!transaction.finished) {
       await transaction.rollback();
     }
@@ -147,7 +154,7 @@ const sendAdminOTPVerification = async ({ id, email }, res, { subject }) => {
     });
     return res.status(503).json({
       status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

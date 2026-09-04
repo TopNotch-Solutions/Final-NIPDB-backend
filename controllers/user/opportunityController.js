@@ -1,4 +1,5 @@
 const Opportunity = require('../../models/opportunity');
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.allGeneral = async (req, res) => {
   try {
@@ -20,10 +21,11 @@ exports.allGeneral = async (req, res) => {
       data: allOpportunities,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/opportunityController.js" });
     console.error("All General Opportunities Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -58,10 +60,11 @@ exports.singleGeneral = async (req, res) => {
       data: opportunity,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/opportunityController.js" });
     console.error("Single General Opportunity Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -86,10 +89,11 @@ exports.allBusiness = async (req, res) => {
       data: allOpportunities,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/opportunityController.js" });
     console.error("All Business Opportunities Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -124,10 +128,11 @@ exports.singleBusiness = async (req, res) => {
       data: opportunity,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/opportunityController.js" });
     console.error("Single Business Opportunity Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

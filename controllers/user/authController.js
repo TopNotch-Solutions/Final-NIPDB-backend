@@ -22,6 +22,7 @@ const FcmToken = require("../../models/fcmToken");
 const sequelize = require("../../config/dbConfig");
 const { removeInvalidFcmToken } = require("../../utils/shared/fcmTokenCleanup");
 const { newPassword } = require("../admin/authController");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.signup = async (req, res) => {
   let { firstName, lastName, email, password } = req.body;
@@ -115,6 +116,7 @@ exports.signup = async (req, res) => {
     { subject }
   );
 } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
   await t.rollback();
   console.error("User Registration Error:", {
     message: error.message,
@@ -124,7 +126,7 @@ exports.signup = async (req, res) => {
   return res.status(503).json({
     success: false,
     statusCode: 503,
-    message: "Service temporarily unavailable. Please try again later."
+    message: "Something went wrong on our end. Please try again in a few moments."
   });
 }
 };
@@ -203,6 +205,7 @@ exports.verifyOTP = async (req, res) => {
       message: role === "User" ? "User verified successfully." : "Link is valid.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("OTP Verification Error:", error);
 
@@ -273,12 +276,13 @@ exports.verifyForgotOTP = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Forgot OTP Verification Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -307,11 +311,12 @@ exports.resendOTP = async (req, res) => {
       { subject }
     );
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error("Resend OTP Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -342,11 +347,12 @@ exports.sendOTP = async (req, res) => {
       { subject }
     );
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error("Send OTP Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -462,12 +468,13 @@ exports.login = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Login Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -484,6 +491,7 @@ exports.dataToken = async (req, res) => {
       
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error(error);
     return res.status(500).json({ status: "FAILURE", message: "Internal Server Error" });
   };
@@ -512,11 +520,12 @@ exports.forgotPasswordEmail = async (req, res) => {
     const subject = "In4MSME Forgot Password Verification";
     await sendOTPVerification({ id: userId, email, role: "User" }, res, { subject });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error("Forgot Password Email Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -554,12 +563,13 @@ exports.validateUser = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback(); // rollback if something fails
     console.error("Validate User Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -604,13 +614,14 @@ exports.validateUpdate = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Validate Update Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
       updateDetails: false,
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -646,17 +657,18 @@ exports.userDetails = async (req, res) => {
       return res.status(404).json({
         status: "FAILURE",
         data: null,
-        message: "User not found.",
+        message: "No account matches the provided details.",
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("User Details Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
       data: null,
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -739,6 +751,7 @@ exports.migrate = async (req, res) => {
       .json({ status: "SUCCESS", message: "Data successfully migrated " });
     console.log("User and business data migrated successfully");
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error ", error });
@@ -767,6 +780,7 @@ exports.test = async (req, res) => {
         await removeInvalidFcmToken(message.token, firebaseError);
       });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     res.status(500).json({ status: "FAILURE", message: "Internal Server Error", error });
   }
 };
@@ -804,7 +818,7 @@ exports.forgotPasswordNewPassword = async (req, res) => {
       await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "User not found.",
+        message: "No account matches the provided details.",
         data: null,
       });
     }
@@ -839,15 +853,16 @@ exports.forgotPasswordNewPassword = async (req, res) => {
 
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Password updated successfully.",
+      message: "Your password has been updated successfully.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Forgot Password Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
       data: null,
     });
@@ -871,7 +886,7 @@ exports.forgotPasswordResendOTP = async (req, res) => {
     if (!existingUser) {
       return res.status(404).json({
         status: "FAILURE",
-        message: "User not found.",
+        message: "No account matches the provided details.",
       });
     }
 
@@ -883,11 +898,12 @@ exports.forgotPasswordResendOTP = async (req, res) => {
       { subject }
     );
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error("Forgot Password Resend OTP Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -934,12 +950,13 @@ exports.register = async (req, res) => {
       data: { deviceTokenId: newToken.id },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Device Token Registration Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
       data: null,
     });
@@ -993,12 +1010,13 @@ exports.registerDeviceToken = async (req, res) => {
       data: { fcmTokenId: newToken.id },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("FCM Device Token Registration Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message
     });
   }
@@ -1030,7 +1048,7 @@ exports.fcmToken = async (req, res) => {
       await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "User not found.",
+        message: "No account matches the provided details.",
         data: null,
       });
     }
@@ -1048,12 +1066,13 @@ exports.fcmToken = async (req, res) => {
       data: { userId },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("FCM Token Update Error:", error);
 
     return res.status(500).json({
       status: "FAILURE",
-      message: "Service temporarily unavailable. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
       data: null,
     });
@@ -1091,7 +1110,7 @@ exports.updateDetails = async (req, res) => {
       await t.rollback();
       return res.status(404).json({
         status: "FAILURE",
-        message: "User not found.",
+        message: "No account matches the provided details.",
       });
     }
 
@@ -1131,11 +1150,12 @@ exports.updateDetails = async (req, res) => {
       currentUser,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Update User Details Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1189,11 +1209,12 @@ exports.updateProfileImage = async (req, res) => {
       currentUser,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Update Profile Image Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1281,11 +1302,12 @@ exports.changePassword = async (req, res) => {
       message: "Password successfully updated",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Change Password Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1295,6 +1317,7 @@ exports.logout = async (req, res) => {
   try {
     res.status(200).json({ status: "SUCCESS", message: "User logged out" });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     res
       .status(500)
       .json({ status: "FAILURE", message: "Internal Server Error" });
@@ -1339,12 +1362,13 @@ exports.validateDeviceToken = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Validate Device Token Error:", error);
     return res.status(500).json({
       status: "FAILURE",
       allowNotification: false,
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1400,12 +1424,13 @@ exports.validateDeviceTokenLoggedIn = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Validate Device Token Logged In Error:", error);
     return res.status(500).json({
       status: "FAILURE",
       allowNotification: false,
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1450,11 +1475,12 @@ exports.delete = async (req, res) => {
       message: "User successfully deleted!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("User Deletion Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1500,11 +1526,12 @@ exports.removeDeviceToken = async (req, res) => {
       message: "Device token successfully updated!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Remove Device Token Error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal Server Error. Please try again later.",
+      message: "Something went wrong on our end. Please try again in a few moments.",
       error: error.message,
     });
   }
@@ -1563,6 +1590,7 @@ exports.removeLoggedInDeviceToken = async (req, res) => {
       message: "Device token successfully removed!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Remove Logged-In Device Token Error:", error);
     return res.status(500).json({

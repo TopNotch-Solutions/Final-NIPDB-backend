@@ -5,6 +5,7 @@ const fs = require("fs");
 const sequelize = require("../../config/dbConfig");
 const { Op } = require("sequelize");
 const XLSX = require("xlsx");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   let { name, type, contactNumber, website, email, description } = req.body;
@@ -89,6 +90,7 @@ exports.create = async (req, res) => {
       data: newBso,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     await transaction.rollback();
     console.error("Creating BSO error:", error);
     return res.status(500).json({
@@ -134,6 +136,7 @@ exports.all = async (req, res) => {
       },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -178,6 +181,7 @@ exports.allDownload = async (req, res) => {
       },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -211,6 +215,7 @@ exports.single = async (req, res) => {
       data: bso,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -335,6 +340,7 @@ exports.update = async (req, res) => {
       data: bso,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     await transaction.rollback();
     if (req.file) {
       const failedPath = path.join(
@@ -365,6 +371,7 @@ exports.totalBsos = async (req, res) => {
       data: totalBso || 0,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal server error",
@@ -416,6 +423,7 @@ exports.delete = async (req, res) => {
       message: "BSO successfully deleted!",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     await transaction.rollback();
 
     return res.status(500).json({
@@ -625,6 +633,7 @@ exports.importFromSheet = async (req, res) => {
       },
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/bsoController.js" });
     await transaction.rollback();
     return res.status(500).json({
       status: "FAILURE",

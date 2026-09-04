@@ -1,4 +1,5 @@
 const PrimaryIndustry = require('../../models/primaryIndustry');
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 exports.all = async (req, res) => {
   try {
     const primaryIndustries = await PrimaryIndustry.findAll();
@@ -17,10 +18,11 @@ exports.all = async (req, res) => {
       data: primaryIndustries,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/primaryIndustryController.js" });
     console.error("Fetch All Industries Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -45,10 +47,11 @@ exports.allIndustryName = async (req, res) => {
       data: primaryIndustries,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/primaryIndustryController.js" });
     console.error("Fetch Industry Names Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -81,10 +84,11 @@ exports.single = async (req, res) => {
       data: primaryIndustry,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/primaryIndustryController.js" });
     console.error("Fetch Single Industry Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -109,10 +113,11 @@ exports.allWithoutIcon = async (req, res) => {
       data: primaryIndustries,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/primaryIndustryController.js" });
     console.error("Fetch Industries Without Icon Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

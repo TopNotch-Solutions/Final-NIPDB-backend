@@ -1,4 +1,5 @@
 const SecondaryIndustry = require('../../models/secondaryIndustry')
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.all = async (req, res) => {
   try {
@@ -18,10 +19,11 @@ exports.all = async (req, res) => {
       data: secondaryIndustries,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/secondaryIndustryController.js" });
     console.error("Fetch All Secondary Industries Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -53,10 +55,11 @@ exports.single = async (req, res) => {
       data: secondaryIndustry,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/secondaryIndustryController.js" });
     console.error("Fetch Single Secondary Industry Error:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

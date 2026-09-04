@@ -9,6 +9,7 @@ const MsmeAdditionalInfo = require("../../models/msmeAdditionalInfo");
 const Conversation = require("../../models/conversation");
 const FcmToken = require("../../models/fcmToken");
 const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
   try {
@@ -125,10 +126,11 @@ exports.create = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     console.error("Internal server error:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -233,10 +235,11 @@ exports.create = async (req, res) => {
 //       data: conversations,
 //     });
 //   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
 //     console.error("Error retrieving conversations:", error);
 //     res.status(500).json({
 //       status: "FAILURE",
-//       message: "Internal server error: " + error.message,
+//       message: "Something went wrong on our end. Please try again in a few moments.",
 //     });
 //   }
 // };
@@ -358,10 +361,11 @@ console.log("this are my conversations: ",conversations);
       data: results
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     console.error("Error retrieving conversations:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message
+      message: "Something went wrong on our end. Please try again in a few moments."
     });
   }
 };
@@ -498,10 +502,11 @@ exports.businessUser = async (req, res) => {
       data: results,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     console.error("Error retrieving conversations:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -570,9 +575,10 @@ exports.singleUser = async (req, res) => {
       data: conversationData,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -644,9 +650,10 @@ exports.singleChatBusiness = async (req, res) => {
       data: conversationData,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -728,9 +735,10 @@ exports.singleBusiness = async (req, res) => {
       data: conversationData,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -766,10 +774,11 @@ exports.messageExist = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     console.error("Error retrieving messages:", error);
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 }
@@ -808,9 +817,10 @@ exports.count = async (req, res) => {
       count: totalCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -838,9 +848,10 @@ exports.allCount = async (req, res) => {
       count: totalCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -881,9 +892,10 @@ exports.allBusinessCount = async (req, res) => {
       count: allBusinessTotalCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -951,9 +963,10 @@ exports.update = async (req, res) => {
       });
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -999,9 +1012,10 @@ exports.viewed = async (req, res) => {
       count: updatedCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1062,9 +1076,10 @@ exports.delete = async (req, res) => {
       }
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1142,9 +1157,10 @@ exports.deleteSent = async (req, res) => {
       }
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1222,9 +1238,10 @@ exports.deleteReceived = async (req, res) => {
       }
     }
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };
@@ -1294,10 +1311,11 @@ exports.deleteConversation = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
     console.error("Error deleting conversation:", error);
     return res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

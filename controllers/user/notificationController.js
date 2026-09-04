@@ -3,6 +3,7 @@ const Notification = require("../../models/notification");
 const User = require("../../models/user");
 const { viewed } = require("./directMessageController");
 const sequelize = require("../../config/dbConfig");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.allUserNotfication = async (req, res) => {
   let userId = req.user.id;
@@ -32,6 +33,7 @@ exports.allUserNotfication = async (req, res) => {
       data: notifications,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/notificationController.js" });
     console.error(`Error fetching notifications for user ${req.user?.id}:`, error);
     return res.status(500).json({
       status: "FAILURE",
@@ -75,6 +77,7 @@ exports.unreadNotification = async (req, res) => {
       data: unreadNotifications,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/notificationController.js" });
     console.error(`Error fetching unread notifications for user ${req.user?.id}:`, error);
     return res.status(500).json({
       status: "FAILURE",
@@ -117,6 +120,7 @@ exports.readNotification = async (req, res) => {
       data: readNotifications,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/notificationController.js" });
     console.error(`Error fetching read notifications for user ${req.user?.id}:`, error);
     return res.status(500).json({
       status: "FAILURE",
@@ -151,6 +155,7 @@ exports.totalNotificationCount = async (req, res) => {
       count: totalCount,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/notificationController.js" });
     console.error(`Error fetching notification count for user ${req.user?.id}:`, error);
     return res.status(500).json({
       status: "FAILURE",
@@ -216,6 +221,7 @@ exports.updateViewed = async (req, res) => {
       message: "Notification successfully marked as viewed.",
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/notificationController.js" });
     await t.rollback();
     console.error(`Error updating notification viewed status:`, error);
     return res.status(500).json({
@@ -279,6 +285,7 @@ exports.deleteSingle = async (req, res) => {
     });
 
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/notificationController.js" });
     await t.rollback();
     console.error("Delete Notification Error:", {
       message: error.message,
@@ -287,7 +294,7 @@ exports.deleteSingle = async (req, res) => {
 
     res.status(500).json({
       status: "FAILURE",
-      message: "Internal server error: " + error.message,
+      message: "Something went wrong on our end. Please try again in a few moments.",
     });
   }
 };

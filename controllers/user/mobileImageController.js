@@ -1,4 +1,5 @@
 const MobileImage = require("../../models/mobileImage");
+const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.all = async (req, res) => {
   try {
@@ -18,6 +19,7 @@ exports.all = async (req, res) => {
       data: images,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/mobileImageController.js" });
     console.error("Error fetching all mobile images:", error);
     return res.status(500).json({
       status: "FAILURE",
@@ -54,6 +56,7 @@ exports.single = async (req, res) => {
       data: image,
     });
   } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/mobileImageController.js" });
     console.error(`Error fetching mobile image with ID ${req.params.id}:`, error);
     return res.status(500).json({
       status: "FAILURE",
