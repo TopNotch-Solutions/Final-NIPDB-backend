@@ -30,9 +30,7 @@ module.exports.tokenAuthMiddleware = (req, res, next) => {
     res.setHeader('x-access-token', `Bearer ${newToken}`);
     next();
   } catch (err) {
-    sendErrorAlert(err, { source: "middlewares/web/authMiddleware.js" });
     if (err instanceof jwt.TokenExpiredError) {
-      
       res.setHeader('x-access-token', '');
       req.user = null;
       console.log(req.user,"Token has expired")
@@ -41,6 +39,7 @@ module.exports.tokenAuthMiddleware = (req, res, next) => {
         message: "Token has expired. Please log in again.",
       });
     } else {
+      sendErrorAlert(err, { source: "middlewares/web/authMiddleware.js" });
       req.user = null;
       console.log(req.user,"Invalid token")
       return res.status(400).json({

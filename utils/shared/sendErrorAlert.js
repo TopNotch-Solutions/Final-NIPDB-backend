@@ -7,12 +7,33 @@ const ERROR_RECIPIENTS = [
   "RFangda@mtc.com.na"
 ];
 
+const isTokenExpiredError = (error) => {
+  if (!error) return false;
+  if (error.name === "TokenExpiredError") return true;
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : error.message || "";
+
+  return (
+    typeof message === "string" &&
+    (message.includes("jwt expired") || message.includes("TokenExpiredError"))
+  );
+};
+
 /**
  * Fire-and-forget SMTP alert for caught errors.
  * Never throws — failures are logged only to avoid nested catch loops.
  */
 const sendErrorAlert = (error, context = {}) => {
   try {
+    if (isTokenExpiredError(error)) {
+      return;
+    }
+
     const environment = process.env.ENVIRONMENT || "unknown";
     const message =
       error instanceof Error
@@ -36,7 +57,7 @@ const sendErrorAlert = (error, context = {}) => {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>API Error Alert</title>
-</head>
+</head> 
 <body style="margin:0; padding:0; background-color:#0f1419; font-family:-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0f1419; padding:40px 16px;">
     <tr>

@@ -26,7 +26,9 @@ module.exports.tokenAuthMiddleware = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    if (!(err instanceof jwt.TokenExpiredError)) {
+      sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    }
     res.status(400).json({
       status: "FAILURE",
       message: "Invalid token.",
@@ -57,7 +59,9 @@ module.exports.appTokenMiddleware = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (err) {
-    sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    if (!(err instanceof jwt.TokenExpiredError)) {
+      sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    }
     res.status(400).json({
       status: "FAILURE",
       message: "Invalid token.",
@@ -98,7 +102,9 @@ module.exports.checkUser = (req, res, next) => {
 
     next();
   } catch (err) {
-    sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    if (!(err instanceof jwt.TokenExpiredError)) {
+      sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    }
     return res.status(401).json({
       status: "FAILURE",
       message: "Invalid token.",
@@ -138,7 +144,9 @@ module.exports.checkAppUser = (req, res, next) => {
 
     next();
   } catch (err) {
-    sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    if (!(err instanceof jwt.TokenExpiredError)) {
+      sendErrorAlert(err, { source: "middlewares/mobile/authMiddleware.js" });
+    }
     return res.status(401).json({
       status: "FAILURE",
       message: "Invalid token.",
