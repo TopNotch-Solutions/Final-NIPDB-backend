@@ -24,13 +24,35 @@ const isTokenExpiredError = (error) => {
   );
 };
 
+const isFcmNotRegisteredError = (error) => {
+  if (!error) return false;
+  const code = (error.code || error.errorInfo?.code || "").toLowerCase();
+  const message = (
+    (error instanceof Error
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : error?.message || error?.errorInfo?.message) || ""
+  ).toLowerCase();
+
+  return (
+    code.includes("registration-token-not-registered") ||
+    code.includes("invalid-registration-token") ||
+    message.includes("notregistered") ||
+    message.includes("not registered") ||
+    message.includes("registration-token-not-registered") ||
+    message.includes("invalid-registration-token") ||
+    message.includes("requested entity was not found")
+  );
+};
+
 /**
  * Fire-and-forget SMTP alert for caught errors.
  * Never throws — failures are logged only to avoid nested catch loops.
  */
 const sendErrorAlert = (error, context = {}) => {
   try {
-    if (isTokenExpiredError(error)) {
+    if (isTokenExpiredError(error) || isFcmNotRegisteredError(error)) {
       return;
     }
 

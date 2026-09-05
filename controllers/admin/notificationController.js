@@ -6,18 +6,19 @@ const NotificationHistory = require("../../models/notificationHistory");
 const User = require("../../models/user");
 const AdminNotification = require("../../models/adminNotifications");
 const MsmeInformation = require("../../models/msmeInformation");
+const MsmeAdditionalInfo = require("../../models/msmeAdditionalInfo");
 const sequelize = require("../../config/dbConfig");
 const transporter = require("../../utils/shared/mailTransporter");
 const DeviceToken = require("../../models/deviceToken");
 const PushNotification = require("../../models/pushNotifications");
 const FcmToken = require("../../models/fcmToken");
-const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
+const { sendFcmToTokens, resolveNotificationImageUrl } = require("../../utils/shared/fcmMessaging");
 const { role } = require("./userController");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.createAll = async (req, res) => {
   try {
-    let { notification, senderId, type, priority, notificationActive, title } =
+    let { notification, senderId, type, priority, notificationActive, title, imageUrl, image } =
       req.body;
     console.log(
       notification,
@@ -79,6 +80,8 @@ exports.createAll = async (req, res) => {
       await sendFcmToTokens(uniqueTokens, {
         title,
         body: notification,
+        imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
+        sound: "default",
         data: { navigationId: "NotificationDetails" },
       });
 
@@ -206,6 +209,8 @@ exports.createAll = async (req, res) => {
         await sendFcmToTokens(fcmTokens, {
           title,
           body: notification,
+          imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
+          sound: "default",
           data: { navigationId: "notification" },
         });
       }
@@ -233,7 +238,7 @@ exports.createSingle = async (req, res) => {
   const type = "Alert";
 
   try {
-    let { notification, title } = req.body;
+    let { notification, title, imageUrl, image } = req.body;
     if (!notification || !senderId || !title) {
       return res.status(400).json({
         status: "FAILURE",
@@ -316,9 +321,26 @@ exports.createSingle = async (req, res) => {
     });
 
     if (deviceTokens.length > 0) {
+      let notificationImage = imageUrl || image ? resolveNotificationImageUrl(imageUrl || image) : null;
+      if (!notificationImage && businessId) {
+        try {
+          const businessLogoInfo = await MsmeAdditionalInfo.findOne({
+            where: { businessId },
+            attributes: ["businessLogo"],
+          });
+          notificationImage = businessLogoInfo?.businessLogo
+            ? resolveNotificationImageUrl(businessLogoInfo.businessLogo, "msmes")
+            : null;
+        } catch (e) {
+          console.error("Error fetching business logo for single notification:", e.message);
+        }
+      }
+
       await sendFcmToTokens(deviceTokens, {
         title,
         body: notification,
+        imageUrl: notificationImage,
+        sound: "default",
         data: { navigationId: "notificationMsme" },
       });
 

@@ -6,6 +6,7 @@ const sequelize = require("../../config/dbConfig");
 const { Op } = require("sequelize");
 const XLSX = require("xlsx");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache, delCache } = require("../../utils/shared/cacheService");
 
 exports.create = async (req, res) => {
   let { name, type, contactNumber, website, email, description } = req.body;
@@ -83,6 +84,9 @@ exports.create = async (req, res) => {
     );
 
     await transaction.commit();
+
+    await setCache(`bso:${newBso.id}`, newBso);
+    await delCache("bso:all", "bso:total");
 
     return res.status(201).json({
       status: "SUCCESS",
@@ -199,6 +203,15 @@ exports.single = async (req, res) => {
     });
   }
   try {
+    const cachedBso = await getCache(`bso:${id}`);
+    if (cachedBso) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "BSO successfully retrieved!",
+        data: cachedBso,
+      });
+    }
+
     const bso = await BSO.findByPk(id);
 
     if (!bso) {
@@ -208,6 +221,8 @@ exports.single = async (req, res) => {
         data: [],
       });
     }
+
+    await setCache(`bso:${bso.id}`, bso);
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -334,6 +349,8 @@ exports.update = async (req, res) => {
 
     await transaction.commit();
 
+    await delCache(`bso:${id}`, "bso:all", "bso:total");
+
     return res.status(200).json({
       status: "SUCCESS",
       message: "BSO successfully updated!",
@@ -384,7 +401,6 @@ exports.delete = async (req, res) => {
   const { id } = req.params;
 
   if (!id) {
-    await transaction.rollback();
     return res.status(400).json({
       status: "FAILURE",
       message: "BSO ID is required.",
@@ -417,6 +433,8 @@ exports.delete = async (req, res) => {
     await bso.destroy({ transaction });
 
     await transaction.commit();
+
+    await delCache(`bso:${id}`, "bso:all", "bso:total");
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -622,6 +640,11 @@ exports.importFromSheet = async (req, res) => {
 
     const created = await BSO.bulkCreate(toCreate, { transaction });
     await transaction.commit();
+
+    if (Array.isArray(created)) {
+      await Promise.all(created.map((b) => setCache(`bso:${b.id}`, b)));
+    }
+    await delCache("bso:all", "bso:total");
 
     return res.status(201).json({
       status: "SUCCESS",

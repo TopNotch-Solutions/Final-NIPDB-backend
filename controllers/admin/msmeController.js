@@ -18,7 +18,7 @@ const path = require("path");
 const Region = require("../../models/region");
 const Town = require("../../models/town");
 const FcmToken = require("../../models/fcmToken");
-const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
+const { sendFcmToTokens, resolveNotificationImageUrl } = require("../../utils/shared/fcmMessaging");
 const BusinessReport = require("../../models/businessReport");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
@@ -1368,9 +1368,18 @@ Kind Regards, NIPDB`,
       attributes: ["deviceToken"],
     });
 
+    const businessAdditional = await MsmeAdditionalInfo.findOne({
+      where: { businessId: existingBusiness.id },
+      attributes: ["businessLogo"],
+    });
+
     sendFcmToTokens(deviceTokens, {
       title: statusMessage.title,
       body: statusMessage.body,
+      imageUrl: businessAdditional?.businessLogo
+        ? resolveNotificationImageUrl(businessAdditional.businessLogo, "msmes")
+        : null,
+      sound: "default",
       data: {
         type: "status_update",
         click_action: "NOTIFICATION_CLICK",
@@ -1463,9 +1472,18 @@ exports.block = async (req, res) => {
       attributes: ["deviceToken"],
     });
 
+    const businessAdditional = await MsmeAdditionalInfo.findOne({
+      where: { businessId: id },
+      attributes: ["businessLogo"],
+    });
+
     sendFcmToTokens(deviceTokens, {
       title: block ? "Business Blocked" : "Business Unblocked",
       body: notificationMessage,
+      imageUrl: businessAdditional?.businessLogo
+        ? resolveNotificationImageUrl(businessAdditional.businessLogo, "msmes")
+        : null,
+      sound: "default",
       data: {
         type: block ? "business_blocked" : "business_unblocked",
       },

@@ -1,8 +1,18 @@
 const Town = require("../../models/town");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache } = require('../../utils/shared/cacheService');
 
 exports.all = async (req, res) => {
   try {
+    const cachedTowns = await getCache("town:all");
+    if (cachedTowns) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Towns successfully retrieved!",
+        data: cachedTowns,
+      });
+    }
+
     const towns = await Town.findAll();
 
     if (!towns || towns.length === 0) {
@@ -13,7 +23,9 @@ exports.all = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("town:all", towns);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Towns successfully retrieved!",
       data: towns,
@@ -29,17 +41,25 @@ exports.all = async (req, res) => {
 };
 
 exports.single = async (req, res) => {
-   const { id } = req.params;
+  const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Town ID is required.",
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Town ID is required.",
+    });
+  }
+
+  try {
+    const cachedTown = await getCache(`town:${id}`);
+    if (cachedTown) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Town successfully retrieved!",
+        data: cachedTown,
       });
     }
 
-  try {
-   
     const town = await Town.findOne({ where: { id } });
 
     if (!town) {
@@ -50,7 +70,9 @@ exports.single = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`town:${town.id}`, town);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Town successfully retrieved!",
       data: town,
@@ -68,13 +90,21 @@ exports.single = async (req, res) => {
 exports.getTownsByRegion = async (req, res) => {
   const { regionId } = req.params;
 
-    if (!regionId) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Region ID is required.",
+  if (!regionId) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Region ID is required.",
+    });
+  }
+  try {
+    const cachedRegionTowns = await getCache(`town:region:${regionId}`);
+    if (cachedRegionTowns) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Towns successfully retrieved by region!",
+        data: cachedRegionTowns,
       });
     }
-  try {
 
     const towns = await Town.findAll({ where: { regionId } });
 
@@ -86,7 +116,9 @@ exports.getTownsByRegion = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`town:region:${regionId}`, towns);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Towns successfully retrieved by region!",
       data: towns,

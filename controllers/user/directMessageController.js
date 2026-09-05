@@ -8,7 +8,7 @@ const MsmeInformation = require("../../models/msmeInformation");
 const MsmeAdditionalInfo = require("../../models/msmeAdditionalInfo");
 const Conversation = require("../../models/conversation");
 const FcmToken = require("../../models/fcmToken");
-const { sendFcmToTokens } = require("../../utils/shared/fcmMessaging");
+const { sendFcmToTokens, resolveNotificationImageUrl } = require("../../utils/shared/fcmMessaging");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.create = async (req, res) => {
@@ -102,9 +102,29 @@ exports.create = async (req, res) => {
       });
 
       if (receiverTokens.length) {
+        let senderImage = checkSender.profileImage
+          ? resolveNotificationImageUrl(checkSender.profileImage, "profile-images")
+          : null;
+
+        if (businessId) {
+          try {
+            const businessAdditional = await MsmeAdditionalInfo.findOne({
+              where: { businessId },
+              attributes: ["businessLogo"],
+            });
+            if (businessAdditional?.businessLogo) {
+              senderImage = resolveNotificationImageUrl(businessAdditional.businessLogo, "msmes");
+            }
+          } catch (e) {
+            console.error("Error fetching business logo for FCM:", e.message);
+          }
+        }
+
         sendFcmToTokens(receiverTokens, {
           title: `${checkSender.firstName} ${checkSender.lastName}`,
           body: newMessage.message,
+          imageUrl: senderImage,
+          sound: "default",
           data: {
             navigationId: "directMessage",
             receiverId,

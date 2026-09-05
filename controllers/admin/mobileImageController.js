@@ -3,30 +3,28 @@ const path = require("path");
 const fs = require('fs');
 const sequelize = require("../../config/dbConfig");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache, delCache } = require("../../utils/shared/cacheService");
 
 exports.create = async (req, res) => {
   const { description } = req.body;
-    const mobileImage = req.file?.filename;
+  const mobileImage = req.file?.filename;
 
-    if (!description) {
-      await transaction.rollback();
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Description is required",
-      });
-    }
-    if (!mobileImage) {
-      await transaction.rollback();
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Image is required",
-      });
-    }
+  if (!description) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Description is required",
+    });
+  }
+  if (!mobileImage) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Image is required",
+    });
+  }
+
   const transaction = await sequelize.transaction();
 
   try {
-    
-
     const imageCount = await MobileImage.count({ transaction });
     if (imageCount >= 10) {
       await transaction.rollback();
@@ -42,6 +40,9 @@ exports.create = async (req, res) => {
     );
 
     await transaction.commit();
+
+    await setCache(`mobile_image:${newImage.id}`, newImage);
+    await delCache("mobile_image:all");
 
     return res.status(201).json({
       status: "SUCCESS",
@@ -66,7 +67,20 @@ exports.create = async (req, res) => {
 
 exports.all = async (req, res) => {
   try {
+    const cachedImages = await getCache("mobile_image:all");
+    if (cachedImages) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Images successfully retrieved!",
+        data: cachedImages,
+      });
+    }
+
     const mobileImages = await MobileImage.findAll();
+    if (mobileImages && mobileImages.length > 0) {
+      await setCache("mobile_image:all", mobileImages);
+    }
+
     return res.status(200).json({
       status: "SUCCESS",
       message: "Images successfully retrieved!",
@@ -84,14 +98,22 @@ exports.all = async (req, res) => {
 
 exports.single = async (req, res) => {
   const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Image ID is required.",
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Image ID is required.",
+    });
+  }
+  try {
+    const cachedImage = await getCache(`mobile_image:${id}`);
+    if (cachedImage) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Image successfully retrieved!",
+        data: cachedImage,
       });
     }
-  try {
-    
+
     const mobileImage = await MobileImage.findByPk(id);
     if (!mobileImage) {
       return res.status(200).json({
@@ -100,6 +122,8 @@ exports.single = async (req, res) => {
         data: []
       });
     }
+
+    await setCache(`mobile_image:${mobileImage.id}`, mobileImage);
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -118,27 +142,25 @@ exports.single = async (req, res) => {
 
 exports.update = async (req, res) => {
   const { id } = req.params;
-    const { description } = req.body;
-    const newFile = req.file?.filename;
+  const { description } = req.body;
+  const newFile = req.file?.filename;
 
-    if (!description) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Description is required",
-      });
-    }
+  if (!description) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Description is required",
+    });
+  }
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required",
-      });
-    }
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required",
+    });
+  }
   const transaction = await sequelize.transaction();
 
   try {
-    
-
     const existingImage = await MobileImage.findByPk(id, { transaction });
     if (!existingImage) {
       await transaction.rollback();
@@ -157,6 +179,8 @@ exports.update = async (req, res) => {
     existingImage.description = description;
     await existingImage.save({ transaction });
     await transaction.commit();
+
+    await delCache(`mobile_image:${id}`, "mobile_image:all");
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -181,15 +205,14 @@ exports.update = async (req, res) => {
 exports.delete = async (req, res) => {
   const { id } = req.params;
   if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required",
-      });
-    }
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required",
+    });
+  }
   const transaction = await sequelize.transaction();
 
   try {
-    
     const totalImages = await MobileImage.count({ transaction });
 
     if (totalImages <= 1) {
@@ -214,6 +237,8 @@ exports.delete = async (req, res) => {
 
     await image.destroy({ transaction });
     await transaction.commit();
+
+    await delCache(`mobile_image:${id}`, "mobile_image:all");
 
     return res.status(200).json({
       status: "SUCCESS",

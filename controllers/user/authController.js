@@ -760,12 +760,15 @@ exports.migrate = async (req, res) => {
 exports.test = async (req, res) => {
   try {
     const message = buildFcmMessage({
-      title: "New Message",
-      body: "We are testing",
+      title: req.body?.title || "New Message",
+      body: req.body?.body || "We are testing",
+      imageUrl: req.body?.imageUrl || undefined,
+      sound: req.body?.sound || "default",
       data: {
         route: "/MessagesMsme",
+        ...(req.body?.data || {}),
       },
-      token: "fiHL3Z9bTTSDsPNftf2M8z:APA91bGFuyuK2HrYEZDoyfFcpazgeg-GPVdwvmKmzjwIWkxQXg_LMAXGk8CnJ0jrFulVigsqsteJWHArCo9C7tT7bm6jEu3p1qT5MTE89jUufm_sVj6ya4k",
+      token: req.body?.token || "fiHL3Z9bTTSDsPNftf2M8z:APA91bGFuyuK2HrYEZDoyfFcpazgeg-GPVdwvmKmzjwIWkxQXg_LMAXGk8CnJ0jrFulVigsqsteJWHArCo9C7tT7bm6jEu3p1qT5MTE89jUufm_sVj6ya4k",
     });
 
     await adminFirebase.messaging().send(message)

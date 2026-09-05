@@ -1,8 +1,18 @@
 const MobileImage = require("../../models/mobileImage");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache } = require('../../utils/shared/cacheService');
 
 exports.all = async (req, res) => {
   try {
+    const cachedImages = await getCache("mobile_image:all");
+    if (cachedImages) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Mobile images retrieved successfully.",
+        data: cachedImages,
+      });
+    }
+
     const images = await MobileImage.findAll();
 
     if (!images || images.length === 0) {
@@ -12,6 +22,8 @@ exports.all = async (req, res) => {
         data: []
       });
     }
+
+    await setCache("mobile_image:all", images);
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -40,6 +52,15 @@ exports.single = async (req, res) => {
       });
     }
 
+    const cachedImage = await getCache(`mobile_image:${id}`);
+    if (cachedImage) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Mobile image retrieved successfully.",
+        data: cachedImage,
+      });
+    }
+
     const image = await MobileImage.findOne({ where: { id } });
 
     if (!image) {
@@ -49,6 +70,8 @@ exports.single = async (req, res) => {
         data: []
       });
     }
+
+    await setCache(`mobile_image:${image.id}`, image);
 
     return res.status(200).json({
       status: "SUCCESS",

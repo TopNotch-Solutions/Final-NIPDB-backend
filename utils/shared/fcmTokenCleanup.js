@@ -1,20 +1,48 @@
 const FcmToken = require("../../models/fcmToken");
+const DeviceToken = require("../../models/deviceToken");
 
 const UNREGISTERED_FCM_ERROR_CODES = new Set([
   "messaging/registration-token-not-registered",
   "messaging/invalid-registration-token",
+  "registration-token-not-registered",
+  "invalid-registration-token",
+  "UNREGISTERED",
+  "NOT_FOUND",
+  "NotRegistered",
+  "InvalidRegistration",
 ]);
 
+/**
+ * Checks if a Firebase error indicates that the registration token
+ * is invalid, unregistered, or expired.
+ */
 const isInvalidFcmTokenError = (error) => {
-  if (!error?.code) return false;
+  if (!error) return false;
 
-  if (UNREGISTERED_FCM_ERROR_CODES.has(error.code)) {
-    return true;
+  const code = (error.code || error.errorInfo?.code || "").toLowerCase();
+  for (const c of UNREGISTERED_FCM_ERROR_CODES) {
+    if (code === c.toLowerCase() || code.includes(c.toLowerCase())) {
+      return true;
+    }
   }
 
+  const message = (
+    (error instanceof Error
+      ? error.message
+      : typeof error === "string"
+      ? error
+      : error?.message || error?.errorInfo?.message) || ""
+  ).toLowerCase();
+
   if (
-    error.code === "messaging/invalid-argument" &&
-    /not a valid FCM registration token/i.test(error.message || "")
+    message.includes("notregistered") ||
+    message.includes("not registered") ||
+    message.includes("registration-token-not-registered") ||
+    message.includes("invalid-registration-token") ||
+    message.includes("not a valid fcm registration token") ||
+    message.includes("requested entity was not found") ||
+    message.includes("invalid registration token") ||
+    message.includes("unregistered")
   ) {
     return true;
   }
@@ -27,24 +55,47 @@ const isUsableFcmToken = (deviceToken) => {
   return deviceToken.trim().length >= 50;
 };
 
+/**
+ * Remove an invalid/unregistered token from both FcmToken and DeviceToken tables.
+ */
 const removeInvalidFcmToken = async (deviceToken, firebaseError) => {
-  if (!deviceToken || !isInvalidFcmTokenError(firebaseError)) {
+  if (!deviceToken) return false;
+  if (firebaseError && !isInvalidFcmTokenError(firebaseError)) {
     return false;
   }
 
-  await FcmToken.destroy({ where: { deviceToken } });
-  console.log(`Removed invalid FCM token: ${deviceToken}`);
-  return true;
+  try {
+    await Promise.allSettled([
+      FcmToken.destroy({ where: { deviceToken } }),
+      DeviceToken.destroy({ where: { deviceToken } }),
+    ]);
+    console.log(`[FCM] Successfully removed unregistered/invalid token: ${deviceToken}`);
+    return true;
+  } catch (err) {
+    console.error(`[FCM] Failed to remove invalid token [${deviceToken}]:`, err.message);
+    return false;
+  }
 };
 
+/**
+ * Remove an unusable/malformed token from both FcmToken and DeviceToken tables.
+ */
 const removeUnusableFcmToken = async (deviceToken) => {
   if (!deviceToken || isUsableFcmToken(deviceToken)) {
     return false;
   }
 
-  await FcmToken.destroy({ where: { deviceToken } });
-  console.log(`Removed unusable FCM token: ${deviceToken}`);
-  return true;
+  try {
+    await Promise.allSettled([
+      FcmToken.destroy({ where: { deviceToken } }),
+      DeviceToken.destroy({ where: { deviceToken } }),
+    ]);
+    console.log(`[FCM] Successfully removed unusable FCM token: ${deviceToken}`);
+    return true;
+  } catch (err) {
+    console.error(`[FCM] Failed to remove unusable token [${deviceToken}]:`, err.message);
+    return false;
+  }
 };
 
 module.exports = {

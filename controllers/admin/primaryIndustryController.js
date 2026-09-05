@@ -1,37 +1,37 @@
-const { where } = require("sequelize");
+const path = require("path");
+const fs = require("fs");
 const PrimaryIndustry = require("../../models/primaryIndustry");
 const CapitalizeFirstLetter = require("../../utils/shared/capitalizeFirstLetter");
 const sequelize = require("../../config/dbConfig");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache, delCache } = require("../../utils/shared/cacheService");
 
 exports.create = async (req, res) => {
-   let { industryName, label } = req.body;
-    const industryIcon = req.file?.filename;
+  let { industryName, label } = req.body;
+  const industryIcon = req.file?.filename;
 
-    if (!industryName) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Industry name is required.",
-      });
-    }
-    if (!label) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Label is required.",
-      });
-    }
+  if (!industryName) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Industry name is required.",
+    });
+  }
+  if (!label) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Label is required.",
+    });
+  }
 
-    if (!industryIcon) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Industry icon is required.",
-      });
-    }
+  if (!industryIcon) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Industry icon is required.",
+    });
+  }
 
   const transaction = await sequelize.transaction();
   try {
-   
-
     industryName = CapitalizeFirstLetter(industryName);
 
     const existingIndustry = await PrimaryIndustry.findOne({ 
@@ -53,6 +53,14 @@ exports.create = async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
+
+    await setCache(`primary_industry:${newIndustry.id}`, newIndustry);
+    await delCache(
+      "primary_industry:all",
+      "primary_industry:all_names",
+      "primary_industry:all_without_icon"
+    );
+
     return res.status(201).json({
       status: "SUCCESS",
       message: "Industry successfully created!",
@@ -76,7 +84,20 @@ exports.create = async (req, res) => {
 
 exports.all = async (req, res) => {
   try {
+    const cachedIndustries = await getCache("primary_industry:all");
+    if (cachedIndustries) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Industries successfully retrieved!",
+        data: cachedIndustries
+      });
+    }
+
     const primaryIndustries = await PrimaryIndustry.findAll();
+    if (primaryIndustries && primaryIndustries.length > 0) {
+      await setCache("primary_industry:all", primaryIndustries);
+    }
+
     return res.status(200).json({
       status: "SUCCESS",
       message: "Industries successfully retrieved!",
@@ -94,21 +115,31 @@ exports.all = async (req, res) => {
 
 exports.single = async (req, res) => {
   const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required"
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required"
+    });
+  }
+  try {
+    const cachedIndustry = await getCache(`primary_industry:${id}`);
+    if (cachedIndustry) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Industry successfully retrieved!",
+        data: cachedIndustry
       });
     }
-  try {
-    
+
     const primaryIndustry = await PrimaryIndustry.findByPk(id);
     if (!primaryIndustry) {
       return res.status(404).json({
-        status: "SUCCESS",
+        status: "FAILURE",
         message: "Industry not found",
       });
     }
+
+    await setCache(`primary_industry:${primaryIndustry.id}`, primaryIndustry);
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -127,22 +158,21 @@ exports.single = async (req, res) => {
 
 exports.update = async (req, res) => {
   const { id } = req.params;
-    let { industryName, label } = req.body;
-    if (!industryName) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Industry name is required.",
-      });
-    }
-    if (!label) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Label is required.",
-      });
-    }
+  let { industryName, label } = req.body;
+  if (!industryName) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Industry name is required.",
+    });
+  }
+  if (!label) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Label is required.",
+    });
+  }
   const transaction = await sequelize.transaction();
   try {
-   
     industryName = CapitalizeFirstLetter(industryName.trim());
 
     const industry = await PrimaryIndustry.findByPk(id, { transaction });
@@ -173,6 +203,13 @@ exports.update = async (req, res) => {
     await industry.save({ transaction });
     await transaction.commit();
 
+    await delCache(
+      `primary_industry:${id}`,
+      "primary_industry:all",
+      "primary_industry:all_names",
+      "primary_industry:all_without_icon"
+    );
+
     return res.status(200).json({
       status: "SUCCESS",
       message: "Industry successfully updated!",
@@ -192,22 +229,21 @@ exports.update = async (req, res) => {
 
 exports.updateLogo = async (req, res) => {
   const { id } = req.params;
-    const industryIcon = req.file?.filename;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required.",
-      });
-    }
-    if (!industryIcon) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Industry icon is required.",
-      });
-    }
+  const industryIcon = req.file?.filename;
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required.",
+    });
+  }
+  if (!industryIcon) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Industry icon is required.",
+    });
+  }
   const transaction = await sequelize.transaction();
   try {
-    
     const industry = await PrimaryIndustry.findByPk(id, { transaction });
     if (!industry) {
       await transaction.rollback();
@@ -225,6 +261,13 @@ exports.updateLogo = async (req, res) => {
 
     await industry.save({ transaction });
     await transaction.commit();
+
+    await delCache(
+      `primary_industry:${id}`,
+      "primary_industry:all",
+      "primary_industry:all_names",
+      "primary_industry:all_without_icon"
+    );
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -249,16 +292,15 @@ exports.updateLogo = async (req, res) => {
 
 exports.delete = async (req, res) => {
   const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required"
-      });
-    }
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required"
+    });
+  }
 
   const transaction = await sequelize.transaction();
   try {
-    
     const industry = await PrimaryIndustry.findByPk(id, { transaction });
     if (!industry) {
       await transaction.rollback();
@@ -273,6 +315,13 @@ exports.delete = async (req, res) => {
 
     await industry.destroy({ transaction });
     await transaction.commit();
+
+    await delCache(
+      `primary_industry:${id}`,
+      "primary_industry:all",
+      "primary_industry:all_names",
+      "primary_industry:all_without_icon"
+    );
 
     return res.status(200).json({
       status: "SUCCESS",

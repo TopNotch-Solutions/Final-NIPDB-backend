@@ -1,8 +1,18 @@
-const SecondaryIndustry = require('../../models/secondaryIndustry')
+const SecondaryIndustry = require('../../models/secondaryIndustry');
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache } = require('../../utils/shared/cacheService');
 
 exports.all = async (req, res) => {
   try {
+    const cachedIndustries = await getCache("secondary_industry:all");
+    if (cachedIndustries) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Secondary industries successfully retrieved!",
+        data: cachedIndustries,
+      });
+    }
+
     const secondaryIndustries = await SecondaryIndustry.findAll();
 
     if (!secondaryIndustries || secondaryIndustries.length === 0) {
@@ -13,7 +23,9 @@ exports.all = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("secondary_industry:all", secondaryIndustries);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Secondary industries successfully retrieved!",
       data: secondaryIndustries,
@@ -31,13 +43,21 @@ exports.all = async (req, res) => {
 exports.single = async (req, res) => {
   const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Secondary industry ID is required.",
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Secondary industry ID is required.",
+    });
+  }
+  try {
+    const cachedIndustry = await getCache(`secondary_industry:${id}`);
+    if (cachedIndustry) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Secondary industry successfully retrieved!",
+        data: cachedIndustry,
       });
     }
-  try {
 
     const secondaryIndustry = await SecondaryIndustry.findOne({ where: { id } });
 
@@ -49,7 +69,9 @@ exports.single = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`secondary_industry:${secondaryIndustry.id}`, secondaryIndustry);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Secondary industry successfully retrieved!",
       data: secondaryIndustry,

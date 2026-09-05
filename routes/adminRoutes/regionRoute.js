@@ -4,8 +4,10 @@ const {tokenAuthMiddleware} = require("../../middlewares/web/authMiddleware");
 const {checkAdmin} = require('../../middlewares/web/authMiddleware');
 const regionAdminRouter = Router();
 
-regionAdminRouter.post('/create',tokenAuthMiddleware, checkAdmin, regionController.create);
-regionAdminRouter.get('/all',tokenAuthMiddleware, checkAdmin, regionController.all);
-regionAdminRouter.get('/single/:id',tokenAuthMiddleware, checkAdmin, regionController.single);
+regionAdminRouter.post('/create', tokenAuthMiddleware, checkAdmin, regionController.create);
+regionAdminRouter.get('/all', tokenAuthMiddleware, checkAdmin, regionController.all);
+regionAdminRouter.get('/single/:id', tokenAuthMiddleware, checkAdmin, regionController.single);
+regionAdminRouter.put('/update/:id', tokenAuthMiddleware, checkAdmin, regionController.update);
+regionAdminRouter.delete('/delete/:id', tokenAuthMiddleware, checkAdmin, regionController.delete);
 
 module.exports = regionAdminRouter;

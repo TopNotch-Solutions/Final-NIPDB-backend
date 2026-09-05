@@ -48,7 +48,7 @@ const CapitalizeFirstLetter = require("./utils/shared/capitalizeFirstLetter");
 const { title } = require("process");
 const FcmToken = require("./models/fcmToken");
 const BusinessReport = require("./models/businessReport");
-const { sendFcmToTokens } = require("./utils/shared/fcmMessaging");
+const { sendFcmToTokens, resolveNotificationImageUrl } = require("./utils/shared/fcmMessaging");
 const sendErrorAlert = require('./utils/shared/sendErrorAlert');
 
 const app = express();
@@ -776,6 +776,8 @@ io.on("connection", (socket) => {
             await sendFcmToTokens(allUserDeviceTokens, {
               title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
               body: newCapitalizedMessage,
+              imageUrl: resolveNotificationImageUrl(checkNewSender.profileImage, "profile-images") || null,
+              sound: "default",
               data: {
                 navigationId: "directMessageMsme",
                 receiverId,
@@ -856,10 +858,11 @@ io.on("connection", (socket) => {
         const receiver = getUser(senderId, role);
         const sender = getBusiness(receiverId, roleBusiness);
 
-        const [checkBusiness, checkNewSender, checkNewReceiver] = await Promise.all([
+        const [checkBusiness, checkNewSender, checkNewReceiver, businessAdditional] = await Promise.all([
           MsmeInformation.findOne({ where: { id: businessId } }),
           User.findOne({ where: { id: senderId } }),
           User.findOne({ where: { id: receiverId } }),
+          MsmeAdditionalInfo.findOne({ where: { businessId }, attributes: ["businessLogo"] }),
         ]);
 
         if (!checkNewSender || !checkNewReceiver || !checkBusiness) {
@@ -1039,6 +1042,8 @@ io.on("connection", (socket) => {
             await sendFcmToTokens(allUserDeviceTokens, {
               title: `${checkBusiness.businessDisplayName}`,
               body: newCapitalizedMessage,
+              imageUrl: resolveNotificationImageUrl(businessAdditional?.businessLogo, "msmes") || null,
+              sound: "default",
               data: {
                 navigationId: "directMessage",
                 receiverId: senderId,

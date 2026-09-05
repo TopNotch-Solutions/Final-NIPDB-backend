@@ -1,8 +1,18 @@
 const Region = require('../../models/region');
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache } = require('../../utils/shared/cacheService');
 
 exports.all = async (req, res) => {
   try {
+    const cachedRegions = await getCache("region:all");
+    if (cachedRegions) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Regions successfully retrieved!",
+        data: cachedRegions,
+      });
+    }
+
     const regions = await Region.findAll();
 
     if (!regions || regions.length === 0) {
@@ -13,7 +23,9 @@ exports.all = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("region:all", regions);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Regions successfully retrieved!",
       data: regions,
@@ -31,14 +43,22 @@ exports.all = async (req, res) => {
 exports.single = async (req, res) => {
   const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Region ID is required.",
-      });
-    }
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Region ID is required.",
+    });
+  }
 
   try {
+    const cachedRegion = await getCache(`region:${id}`);
+    if (cachedRegion) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Region successfully retrieved!",
+        data: cachedRegion,
+      });
+    }
 
     const region = await Region.findOne({ where: { id } });
 
@@ -50,7 +70,9 @@ exports.single = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`region:${region.id}`, region);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Region successfully retrieved!",
       data: region,

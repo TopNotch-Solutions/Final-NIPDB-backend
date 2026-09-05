@@ -1,7 +1,18 @@
 const PrimaryIndustry = require('../../models/primaryIndustry');
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache } = require('../../utils/shared/cacheService');
+
 exports.all = async (req, res) => {
   try {
+    const cachedIndustries = await getCache("primary_industry:all");
+    if (cachedIndustries) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Industries successfully retrieved!",
+        data: cachedIndustries,
+      });
+    }
+
     const primaryIndustries = await PrimaryIndustry.findAll();
 
     if (!primaryIndustries || primaryIndustries.length === 0) {
@@ -12,7 +23,9 @@ exports.all = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("primary_industry:all", primaryIndustries);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Industries successfully retrieved!",
       data: primaryIndustries,
@@ -29,6 +42,15 @@ exports.all = async (req, res) => {
 
 exports.allIndustryName = async (req, res) => {
   try {
+    const cachedNames = await getCache("primary_industry:all_names");
+    if (cachedNames) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Industries successfully retrieved!",
+        data: cachedNames,
+      });
+    }
+
     const primaryIndustries = await PrimaryIndustry.findAll({
       attributes: ['id', 'industryName'],
     });
@@ -41,7 +63,9 @@ exports.allIndustryName = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("primary_industry:all_names", primaryIndustries);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Industries successfully retrieved!",
       data: primaryIndustries,
@@ -57,17 +81,25 @@ exports.allIndustryName = async (req, res) => {
 };
 
 exports.single = async (req, res) => {
-   const { id } = req.params;
+  const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Industry ID is required.",
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Industry ID is required.",
+    });
+  }
+
+  try {
+    const cachedIndustry = await getCache(`primary_industry:${id}`);
+    if (cachedIndustry) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Industry successfully retrieved!",
+        data: cachedIndustry,
       });
     }
 
-  try {
-   
     const primaryIndustry = await PrimaryIndustry.findOne({ where: { id } });
 
     if (!primaryIndustry) {
@@ -78,7 +110,9 @@ exports.single = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`primary_industry:${primaryIndustry.id}`, primaryIndustry);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Industry successfully retrieved!",
       data: primaryIndustry,
@@ -95,6 +129,15 @@ exports.single = async (req, res) => {
 
 exports.allWithoutIcon = async (req, res) => {
   try {
+    const cachedData = await getCache("primary_industry:all_without_icon");
+    if (cachedData) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Industries successfully retrieved without icons!",
+        data: cachedData,
+      });
+    }
+
     const primaryIndustries = await PrimaryIndustry.findAll({
       attributes: ['id', 'industryName', 'label'], 
     });
@@ -107,7 +150,9 @@ exports.allWithoutIcon = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("primary_industry:all_without_icon", primaryIndustries);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Industries successfully retrieved without icons!",
       data: primaryIndustries,

@@ -4,34 +4,34 @@ const Opportunity = require("../../models/opportunity");
 const path = require("path");
 const sequelize = require("../../config/dbConfig");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache, delCache } = require("../../utils/shared/cacheService");
 
 exports.create = async (req, res) => {
   let { description, user, link } = req.body;
-    const image = req.file?.filename;
+  const image = req.file?.filename;
 
-    if (!image) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Image is required",
-      });
-    }
+  if (!image) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Image is required",
+    });
+  }
 
-    if (!user) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "User is required",
-      });
-    }
-    if (!link) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Link is required",
-      });
-    }
+  if (!user) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "User is required",
+    });
+  }
+  if (!link) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Link is required",
+    });
+  }
 
   const transaction = await sequelize.transaction();
   try {
-    
     const categoryCount = await Opportunity.count({ 
       where: { user }, transaction 
     });
@@ -63,6 +63,10 @@ exports.create = async (req, res) => {
     }, { transaction });
 
     await transaction.commit();
+
+    await setCache(`opportunity:${newOpportunity.id}`, newOpportunity);
+    await delCache("opportunity:all", "opportunity:all:general", "opportunity:all:business");
+
     return res.status(201).json({
       status: "SUCCESS",
       message: "Opportunity successfully created!",
@@ -86,7 +90,20 @@ exports.create = async (req, res) => {
 
 exports.all = async (req, res) => {
   try {
+    const cachedOpportunities = await getCache("opportunity:all");
+    if (cachedOpportunities) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Opportunities successfully retrieved!",
+        data: cachedOpportunities
+      });
+    }
+
     const allOpportunities = await Opportunity.findAll();
+    if (allOpportunities && allOpportunities.length > 0) {
+      await setCache("opportunity:all", allOpportunities);
+    }
+
     return res.status(200).json({
       status: "SUCCESS",
       message: "Opportunities successfully retrieved!",
@@ -104,14 +121,22 @@ exports.all = async (req, res) => {
 
 exports.single = async (req, res) => {
   const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required."
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required."
+    });
+  }
+  try {
+    const cachedOpportunity = await getCache(`opportunity:${id}`);
+    if (cachedOpportunity) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Opportunity successfully retrieved!",
+        data: cachedOpportunity
       });
     }
-  try {
-  
+
     const opportunity = await Opportunity.findByPk(id);
     if (!opportunity) {
       return res.status(404).json({
@@ -119,6 +144,8 @@ exports.single = async (req, res) => {
         message: "Opportunity not found."
       });
     }
+
+    await setCache(`opportunity:${opportunity.id}`, opportunity);
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -136,31 +163,31 @@ exports.single = async (req, res) => {
 };
 
 exports.update = async (req, res) => {
-   const { id } = req.params;
-    const { description, user, link } = req.body;
-    const newImage = req.file?.filename;
-    if (!description) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Description is required"
-      });
-    }
-     if (!user) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "User is required"
-      });
-    }
-     if (!link) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Link is required"
-      });
-    }
+  const { id } = req.params;
+  const { description, user, link } = req.body;
+  const newImage = req.file?.filename;
+
+  if (!description) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Description is required"
+    });
+  }
+  if (!user) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "User is required"
+    });
+  }
+  if (!link) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Link is required"
+    });
+  }
 
   const transaction = await sequelize.transaction();
   try {
-
     const existingOpportunity = await Opportunity.findByPk(id, { transaction });
     if (!existingOpportunity) {
       await transaction.rollback();
@@ -182,6 +209,13 @@ exports.update = async (req, res) => {
 
     await existingOpportunity.save({ transaction });
     await transaction.commit();
+
+    await delCache(
+      `opportunity:${id}`,
+      "opportunity:all",
+      "opportunity:all:general",
+      "opportunity:all:business"
+    );
 
     return res.status(200).json({
       status: "SUCCESS",
@@ -206,15 +240,14 @@ exports.update = async (req, res) => {
 
 exports.delete = async (req, res) => {
   const { id } = req.params;
-   if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "ID is required"
-      });
-    }
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "ID is required"
+    });
+  }
   const transaction = await sequelize.transaction();
   try {
-    
     const totalOpportunities = await Opportunity.count({ transaction });
 
     if (totalOpportunities <= 1) {
@@ -239,6 +272,13 @@ exports.delete = async (req, res) => {
 
     await opportunity.destroy({ transaction });
     await transaction.commit();
+
+    await delCache(
+      `opportunity:${id}`,
+      "opportunity:all",
+      "opportunity:all:general",
+      "opportunity:all:business"
+    );
 
     return res.status(200).json({
       status: "SUCCESS",

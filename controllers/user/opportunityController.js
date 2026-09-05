@@ -1,8 +1,18 @@
 const Opportunity = require('../../models/opportunity');
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const { getCache, setCache } = require('../../utils/shared/cacheService');
 
 exports.allGeneral = async (req, res) => {
   try {
+    const cachedOpportunities = await getCache("opportunity:all:general");
+    if (cachedOpportunities) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Opportunities successfully retrieved for General User!",
+        data: cachedOpportunities,
+      });
+    }
+
     const allOpportunities = await Opportunity.findAll({
       where: { user: "General User" },
     });
@@ -11,11 +21,13 @@ exports.allGeneral = async (req, res) => {
       return res.status(200).json({
         status: "FAILURE",
         message: "No opportunities found for General User.",
-        data:[]
+        data: []
       });
     }
 
-    res.status(200).json({
+    await setCache("opportunity:all:general", allOpportunities);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Opportunities successfully retrieved for General User!",
       data: allOpportunities,
@@ -33,14 +45,21 @@ exports.allGeneral = async (req, res) => {
 exports.singleGeneral = async (req, res) => {
   const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Opportunity ID is required.",
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Opportunity ID is required.",
+    });
+  }
+  try {
+    const cachedOpportunity = await getCache(`opportunity:${id}`);
+    if (cachedOpportunity && cachedOpportunity.user === "General User") {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Opportunity successfully retrieved!",
+        data: cachedOpportunity,
       });
     }
-  try {
-    
 
     const opportunity = await Opportunity.findOne({
       where: { id, user: "General User" },
@@ -54,7 +73,9 @@ exports.singleGeneral = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`opportunity:${opportunity.id}`, opportunity);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Opportunity successfully retrieved!",
       data: opportunity,
@@ -71,6 +92,15 @@ exports.singleGeneral = async (req, res) => {
 
 exports.allBusiness = async (req, res) => {
   try {
+    const cachedOpportunities = await getCache("opportunity:all:business");
+    if (cachedOpportunities) {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Opportunities successfully retrieved for Business User!",
+        data: cachedOpportunities,
+      });
+    }
+
     const allOpportunities = await Opportunity.findAll({
       where: { user: "Business User" },
     });
@@ -83,7 +113,9 @@ exports.allBusiness = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache("opportunity:all:business", allOpportunities);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Opportunities successfully retrieved for Business User!",
       data: allOpportunities,
@@ -101,14 +133,21 @@ exports.allBusiness = async (req, res) => {
 exports.singleBusiness = async (req, res) => {
   const { id } = req.params;
 
-    if (!id) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "Opportunity ID is required.",
+  if (!id) {
+    return res.status(400).json({
+      status: "FAILURE",
+      message: "Opportunity ID is required.",
+    });
+  }
+  try {
+    const cachedOpportunity = await getCache(`opportunity:${id}`);
+    if (cachedOpportunity && cachedOpportunity.user === "Business User") {
+      return res.status(200).json({
+        status: "SUCCESS",
+        message: "Opportunity successfully retrieved!",
+        data: cachedOpportunity,
       });
     }
-  try {
-    
 
     const opportunity = await Opportunity.findOne({
       where: { id, user: "Business User" },
@@ -122,7 +161,9 @@ exports.singleBusiness = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    await setCache(`opportunity:${opportunity.id}`, opportunity);
+
+    return res.status(200).json({
       status: "SUCCESS",
       message: "Opportunity successfully retrieved!",
       data: opportunity,
