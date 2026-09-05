@@ -1413,7 +1413,7 @@ exports.block = async (req, res) => {
         message: "Business ID is required",
       });
     }
-    if (!block) {
+    if (block === undefined || block === null) {
       return res.status(400).json({
         status: "FAILURE",
         message: "Block is required",
