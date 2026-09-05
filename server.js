@@ -116,18 +116,31 @@ let onlineUsers = [];
 let onlineBusiness = [];
 
 const addNewUser = (id, role, socketId) => {
-  console.log(id, role, socketId);
-  if (!onlineUsers.some((user) => user.id === id && user.role === role)) {
+  console.log("addNewUser:", id, role, socketId);
+  if (!id) return;
+  const existingUser = onlineUsers.find(
+    (user) => String(user.id) === String(id) && user.role === role
+  );
+  if (existingUser) {
+    existingUser.socketId = socketId;
+  } else {
     onlineUsers.push({ id, role, socketId });
   }
 };
 
-const addNewBusinesss = (id, role, socketId) => {
-  console.log(id, role, socketId);
-  if (!onlineBusiness.some((user) => user.id === id && user.role === role)) {
+const addNewBusiness = (id, role, socketId) => {
+  console.log("addNewBusiness:", id, role, socketId);
+  if (!id) return;
+  const existingBusiness = onlineBusiness.find(
+    (user) => String(user.id) === String(id) && user.role === role
+  );
+  if (existingBusiness) {
+    existingBusiness.socketId = socketId;
+  } else {
     onlineBusiness.push({ id, role, socketId });
   }
 };
+const addNewBusinesss = addNewBusiness;
 
 const removeUser = (socketId) => {
   onlineUsers = onlineUsers.filter((user) => user.socketId !== socketId);
@@ -137,11 +150,17 @@ const removeBusiness = (socketId) => {
 };
 
 const getUser = (id, role) => {
-  return onlineUsers.find((user) => user.id === id && user.role === role);
+  if (!id) return null;
+  return onlineUsers.find(
+    (user) => String(user.id) === String(id) && (!role || user.role === role)
+  );
 };
 
 const getBusiness = (id, role) => {
-  return onlineBusiness.find((user) => user.id === id && user.role === role);
+  if (!id) return null;
+  return onlineBusiness.find(
+    (user) => String(user.id) === String(id) && (!role || user.role === role)
+  );
 };
 
 const getAllOnlineUsers = () => {
@@ -154,13 +173,13 @@ const getAllOnlineBusiness = () => {
 
 const removeUserByRole = (id, role) => {
   onlineUsers = onlineUsers.filter(
-    (user) => !(user.id === id && user.role === role)
+    (user) => !(String(user.id) === String(id) && user.role === role)
   );
 };
 
 const removeBusinessByRole = (id, role) => {
   onlineBusiness = onlineBusiness.filter(
-    (user) => !(user.id === id && user.role === role)
+    (user) => !(String(user.id) === String(id) && user.role === role)
   );
 };
 
@@ -495,6 +514,21 @@ io.on("connection", (socket) => {
         businessId: Number(businessId) || businessId,
       });
 
+      // Notify the original message sender that their messages were read (read receipt)
+      if (updatedCount > 0) {
+        const originalSenderUser = getUser(senderId, "User");
+        const originalSenderBusiness = getBusiness(senderId, "Business");
+        const originalSenderSocket = originalSenderUser || originalSenderBusiness;
+        if (originalSenderSocket) {
+          io.to(originalSenderSocket.socketId).emit("messages-viewed", {
+            conversationId,
+            viewedBy: receiverId,
+            senderId,
+            count: updatedCount,
+          });
+        }
+      }
+
       ack.success({
         count: updatedCount,
         counts: {
@@ -505,342 +539,301 @@ io.on("connection", (socket) => {
       });
     }
   );
+
+  // Typing indicators
+  socket.on("typing", ({ conversationId, senderId, receiverId, role = "User" } = {}) => {
+    if (!receiverId) return;
+    const targetSocket =
+      role === "Business"
+        ? getBusiness(receiverId, "Business")
+        : getUser(receiverId, "User");
+    if (targetSocket) {
+      io.to(targetSocket.socketId).emit("user-typing", {
+        conversationId,
+        senderId,
+      });
+    }
+  });
+
+  socket.on("stop-typing", ({ conversationId, senderId, receiverId, role = "User" } = {}) => {
+    if (!receiverId) return;
+    const targetSocket =
+      role === "Business"
+        ? getBusiness(receiverId, "Business")
+        : getUser(receiverId, "User");
+    if (targetSocket) {
+      io.to(targetSocket.socketId).emit("user-stop-typing", {
+        conversationId,
+        senderId,
+      });
+    }
+  });
   // message is still a notification.
   onSocketEvent(
     socket,
     "send-chat-message-user",
     async ({ receiverId, message, senderId, businessId } = {}, ack) => {
-      console.log(receiverId, message, senderId, businessId);
+      console.log("send-chat-message-user:", { receiverId, message, senderId, businessId });
       try {
-        let role = "User";
-        let roleBusiness = "Business";
+        if (!receiverId || !message || !senderId || !businessId) {
+          ack.failure("Empty parameter");
+          return;
+        }
+
+        const role = "User";
+        const roleBusiness = "Business";
         const newCapitalizedMessage = CapitalizeFirstLetter(message);
         const receiver = getBusiness(receiverId, roleBusiness);
         const sender = getUser(senderId, role);
 
-        if (receiverId && message && senderId && businessId) {
-          console.log("both user present");
-          const checkNewSender = await User.findOne({
-            where: { id: senderId },
-          });
-          const checkNewReciever = await User.findOne({
-            where: { id: receiverId },
-          });
-          console.log(checkNewReciever, checkNewSender);
+        const [checkNewSender, checkNewReceiver] = await Promise.all([
+          User.findOne({ where: { id: senderId } }),
+          User.findOne({ where: { id: receiverId } }),
+        ]);
 
-          if (checkNewSender && checkNewReciever) {
-            let conversation = await Conversation.findOne({
-              where: {
-                businessId,
-                [Op.or]: [
-                  { senderId: senderId, receiverId: receiverId },
-                  { senderId: receiverId, receiverId: senderId },
-                ],
-              },
-              order: [["createdAt", "DESC"]],
-            });
-
-            let conversationId;
-            if (conversation) {
-              conversationId = conversation.id;
-            } else {
-              const newConversation = await Conversation.create({
-                senderId,
-                receiverId: receiverId,
-                businessId,
-                createdAt: Date.now(),
-              });
-              conversationId = newConversation.id;
-            }
-            console.log("conversation ID is: ", conversationId);
-
-            const newMessage = await Message.create({
-              receiverId,
-              senderId,
-              message: newCapitalizedMessage,
-              viewed: false,
-              businessId,
-              delivered: false,
-              senderDelete: false,
-              receiverDelete: false,
-              createdAt: Date.now(),
-              userType: "Business",
-              conversationId,
-            });
-            console.log("This is the new message: ", newMessage);
-
-            if (newMessage) {
-              // Send Socket Update
-              if (receiver) {
-                const conversation = await Conversation.findOne({
-                  where: {
-                    businessId,
-                    senderId,
-                    receiverId,
-                  },
-                });
-
-                if (!conversation) {
-                  const conversationDataNon = {
-                    sent: [],
-                    received: [],
-                  };
-                  io.to(receiver.socketId).emit("new-chat-messages-business", {
-                    data: conversationDataNon,
-                  });
-                  return;
-                }
-
-                const messages = await Message.findAll({
-                  where: {
-                    conversationId: conversation.id,
-                    [Op.or]: [{ senderId: senderId }, { senderId: receiverId }],
-                    receiverDelete: false,
-                  },
-                  order: [["createdAt", "ASC"]],
-                });
-                const sentMessages = messages.filter(
-                  (msg) => msg.senderId === senderId
-                );
-                const receivedMessages = messages.filter(
-                  (msg) => msg.senderId === receiverId
-                );
-
-                const conversationData = {
-                  sent: sentMessages,
-                  received: receivedMessages,
-                };
-                io.to(receiver.socketId).emit("new-chat-messages-business", {
-                  data: conversationData,
-                });
-                const conversations = await Conversation.findAll({
-                  where: {
-                    businessId,
-                    [Op.or]: [{ senderId: receiverId }, { receiverId }],
-                  },
-                });
-                if (!conversations.length) {
-                  io.to(receiver.socketId).emit("new-lastest-messages-business", {
-                    data: [],
-                  });
-                } else {
-                const userIds = [
-                  ...new Set(
-                    conversations.map((convo) =>
-                      convo.senderId === receiverId
-                        ? convo.receiverId
-                        : convo.senderId
-                    )
-                  ),
-                ];
-                const latestMessages = await Promise.all(
-                  conversations.map(async (conversation) => {
-                    return Message.findOne({
-                      where: { conversationId: conversation.id },
-                      order: [["createdAt", "DESC"]],
-                    });
-                  })
-                );
-                const results = await Promise.all(
-                  userIds.map(async (otherUserId) => {
-                    const conversation = conversations.find(
-                      (convo) =>
-                        convo.senderId === otherUserId ||
-                        convo.receiverId === otherUserId
-                    );
-                    if (!conversation) return null;
-                    const latestMessage = latestMessages.find(
-                      (msg) => msg.conversationId === conversation.id
-                    );
-
-                    if (!latestMessage) {
-                      throw new Error("Latest message not found");
-                    }
-                    const unreadCount = await Message.count({
-                      where: {
-                        conversationId: conversation.id,
-                        senderId: otherUserId,
-                        viewed: false,
-                        receiverDelete: false,
-                      },
-                    });
-
-                    const otherUser = await User.findOne({
-                      where: { id: otherUserId },
-                      attributes: [
-                        "id",
-                        "profileImage",
-                        "firstName",
-                        "lastName",
-                      ],
-                    });
-
-                    if (!otherUser) {
-                      throw new Error("Other user not found");
-                    }
-
-                    let profilePicture = otherUser.profileImage;
-                    let displayName = `${otherUser.firstName} ${otherUser.lastName}`;
-
-                    const business = await MsmeInformation.findOne({
-                      where: { id: businessId, userId: otherUserId },
-                    });
-                    if (business) {
-                      const businessLogoUser = await MsmeAdditionalInfo.findOne(
-                        {
-                          attributes: ["businessLogo"],
-                          where: { businessId: business.id },
-                        }
-                      );
-                      if (businessLogoUser) {
-                        profilePicture = businessLogoUser.businessLogo;
-                      }
-                      displayName = business.businessDisplayName;
-                    }
-
-                    const conversationDetails = {
-                      id: conversation.id,
-                      senderId: conversation.senderId,
-                      receiverId: conversation.receiverId,
-                      businessId: conversation.businessId,
-                      createdAt: conversation.createdAt,
-                      updatedAt: conversation.updatedAt,
-                    };
-                    return {
-                      userId: otherUser.id,
-                      displayName,
-                      profilePicture,
-                      latestMessage,
-                      conversationDetails,
-                      unreadCount,
-                    };
-                  })
-                );
-                console.log("Results", results);
-                const allUserDeviceTokens = await FcmToken.findAll({
-                  where: { userId: receiverId, role: "Business" },
-                  attributes: ["deviceToken"],
-                });
-
-                if (allUserDeviceTokens.length > 0) {
-                  await sendFcmToTokens(allUserDeviceTokens, {
-                    title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
-                    body: newCapitalizedMessage,
-                    data: {
-                      navigationId: "directMessageMsme",
-                      receiverId,
-                      senderId,
-                      businessId,
-                      conversationId,
-                    },
-                  });
-                }
-                io.to(receiver.socketId).emit("new-lastest-messages-business", {
-                  data: results.filter((result) => result !== null),
-                });
-                }
-              } else {
-                const allUserDeviceTokens = await FcmToken.findAll({
-                  where: { userId: receiverId, role: "Business" },
-                  attributes: ["deviceToken"],
-                });
-
-                if (allUserDeviceTokens.length > 0) {
-                  await sendFcmToTokens(allUserDeviceTokens, {
-                    title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
-                    body: newCapitalizedMessage,
-                    data: {
-                      navigationId: "directMessageMsme",
-                      receiverId,
-                      senderId,
-                      businessId,
-                      conversationId,
-                    },
-                  });
-                }
-              }
-
-              // Send Socket Update for Sender
-              if (sender) {
-                const conversation = await Conversation.findOne({
-                  where: {
-                    businessId,
-                    senderId,
-                    receiverId,
-                  },
-                });
-
-                if (!conversation) {
-                  const conversationDataNon = {
-                    sent: [],
-                    received: [],
-                  };
-                  io.to(sender.socketId).emit("new-chat-messages-user", {
-                    data: conversationDataNon,
-                  });
-                  return;
-                }
-
-                const messages = await Message.findAll({
-                  where: {
-                    conversationId: conversation.id,
-                    [Op.or]: [{ senderId }, { senderId: receiverId }],
-                    receiverDelete: false,
-                  },
-                  order: [["createdAt", "ASC"]],
-                });
-                const sentMessages = messages.filter(
-                  (msg) => msg.senderId === senderId
-                );
-                const receivedMessages = messages.filter(
-                  (msg) => msg.senderId === receiverId
-                );
-
-                const conversationData = {
-                  sent: sentMessages,
-                  received: receivedMessages,
-                };
-                io.to(sender.socketId).emit("new-chat-messages-user", {
-                  data: conversationData,
-                });
-              }
-
-              const senderCount = await getUnreadCountForSender({
-                receiverId,
-                senderId,
-                conversationId,
-              });
-              const allCount = await getAllUnreadCount({ receiverId });
-              const allBusinessCount = await getAllBusinessUnreadCount({
-                receiverId,
-                businessId,
-              });
-
-              if (receiver) {
-                io.to(receiver.socketId).emit("count-updated", {
-                  receiverId,
-                  senderId,
-                  conversationId,
-                  businessId,
-                  count: senderCount,
-                  allCount,
-                  allBusinessCount,
-                });
-              }
-
-            }
-          } else {
-            ack.failure("Sender or receiver not found");
-            return;
-          }
-        } else {
-          ack.failure("Empty parameter");
+        if (!checkNewSender || !checkNewReceiver) {
+          ack.failure("Sender or receiver not found");
           return;
         }
-        ack.success({ message: "Message processed successfully" });
+
+        let conversation = await Conversation.findOne({
+          where: {
+            businessId,
+            [Op.or]: [
+              { senderId: senderId, receiverId: receiverId },
+              { senderId: receiverId, receiverId: senderId },
+            ],
+          },
+          order: [["createdAt", "DESC"]],
+        });
+
+        let conversationId;
+        if (conversation) {
+          conversationId = conversation.id;
+        } else {
+          conversation = await Conversation.create({
+            senderId,
+            receiverId: receiverId,
+            businessId,
+            createdAt: Date.now(),
+          });
+          conversationId = conversation.id;
+        }
+        console.log("conversation ID is: ", conversationId);
+
+        const newMessage = await Message.create({
+          receiverId,
+          senderId,
+          message: newCapitalizedMessage,
+          viewed: false,
+          businessId,
+          delivered: false,
+          senderDelete: false,
+          receiverDelete: false,
+          createdAt: Date.now(),
+          userType: "Business",
+          conversationId,
+        });
+        console.log("This is the new message: ", newMessage);
+
+        // Fetch conversation messages for real-time delivery
+        const messages = await Message.findAll({
+          where: {
+            conversationId,
+          },
+          order: [["createdAt", "ASC"]],
+        });
+
+        // 1. Deliver real-time update to Receiver (Business)
+        if (receiver) {
+          const receiverSentMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(receiverId) && !msg.senderDelete
+          );
+          const receiverReceivedMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(senderId) && !msg.receiverDelete
+          );
+
+          io.to(receiver.socketId).emit("new-chat-messages-business", {
+            data: {
+              sent: receiverSentMessages,
+              received: receiverReceivedMessages,
+            },
+          });
+
+          // Fetch updated conversation list for the business
+          const businessConversations = await Conversation.findAll({
+            where: {
+              businessId,
+              [Op.or]: [{ senderId: receiverId }, { receiverId }],
+            },
+          });
+
+          if (!businessConversations.length) {
+            io.to(receiver.socketId).emit("new-lastest-messages-business", {
+              data: [],
+            });
+          } else {
+            const userIds = [
+              ...new Set(
+                businessConversations.map((convo) =>
+                  String(convo.senderId) === String(receiverId)
+                    ? convo.receiverId
+                    : convo.senderId
+                )
+              ),
+            ];
+
+            const conversationIds = businessConversations.map((c) => c.id);
+            const latestMessages = await Promise.all(
+              conversationIds.map(async (cId) => {
+                return Message.findOne({
+                  where: { conversationId: cId },
+                  order: [["createdAt", "DESC"]],
+                });
+              })
+            );
+
+            const results = await Promise.all(
+              userIds.map(async (otherUserId) => {
+                const convo = businessConversations.find(
+                  (c) =>
+                    String(c.senderId) === String(otherUserId) ||
+                    String(c.receiverId) === String(otherUserId)
+                );
+                if (!convo) return null;
+
+                const latestMessage = latestMessages.find(
+                  (msg) => msg && String(msg.conversationId) === String(convo.id)
+                );
+                if (!latestMessage) return null;
+
+                const unreadCount = await Message.count({
+                  where: {
+                    conversationId: convo.id,
+                    senderId: otherUserId,
+                    viewed: false,
+                    receiverDelete: false,
+                  },
+                });
+
+                const otherUser = await User.findOne({
+                  where: { id: otherUserId },
+                  attributes: ["id", "profileImage", "firstName", "lastName"],
+                });
+                if (!otherUser) return null;
+
+                let profilePicture = otherUser.profileImage;
+                let displayName = `${otherUser.firstName} ${otherUser.lastName}`;
+
+                const business = await MsmeInformation.findOne({
+                  where: { id: businessId, userId: otherUserId },
+                });
+                if (business) {
+                  const businessLogoUser = await MsmeAdditionalInfo.findOne({
+                    attributes: ["businessLogo"],
+                    where: { businessId: business.id },
+                  });
+                  if (businessLogoUser) {
+                    profilePicture = businessLogoUser.businessLogo;
+                  }
+                  displayName = business.businessDisplayName;
+                }
+
+                const conversationDetails = {
+                  id: convo.id,
+                  senderId: convo.senderId,
+                  receiverId: convo.receiverId,
+                  businessId: convo.businessId,
+                  createdAt: convo.createdAt,
+                  updatedAt: convo.updatedAt,
+                };
+
+                return {
+                  userId: otherUser.id,
+                  displayName,
+                  profilePicture,
+                  latestMessage,
+                  conversationDetails,
+                  unreadCount,
+                };
+              })
+            );
+
+            io.to(receiver.socketId).emit("new-lastest-messages-business", {
+              data: results.filter(Boolean),
+            });
+          }
+        }
+
+        // Send Push Notification to Business Device Tokens
+        try {
+          const allUserDeviceTokens = await FcmToken.findAll({
+            where: { userId: receiverId, role: "Business" },
+            attributes: ["deviceToken"],
+          });
+
+          if (allUserDeviceTokens.length > 0) {
+            await sendFcmToTokens(allUserDeviceTokens, {
+              title: `${checkNewSender.firstName} ${checkNewSender.lastName}`,
+              body: newCapitalizedMessage,
+              data: {
+                navigationId: "directMessageMsme",
+                receiverId,
+                senderId,
+                businessId,
+                conversationId,
+              },
+            });
+          }
+        } catch (fcmError) {
+          console.error("FCM push error (send-chat-message-user):", fcmError.message);
+        }
+
+        // 2. Deliver real-time update to Sender (Customer)
+        if (sender) {
+          const senderSentMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(senderId) && !msg.senderDelete
+          );
+          const senderReceivedMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(receiverId) && !msg.receiverDelete
+          );
+
+          io.to(sender.socketId).emit("new-chat-messages-user", {
+            data: {
+              sent: senderSentMessages,
+              received: senderReceivedMessages,
+            },
+          });
+        }
+
+        // 3. Update unread count badges for the receiver
+        const senderCount = await getUnreadCountForSender({
+          receiverId,
+          senderId,
+          conversationId,
+        });
+        const allCount = await getAllUnreadCount({ receiverId });
+        const allBusinessCount = await getAllBusinessUnreadCount({
+          receiverId,
+          businessId,
+        });
+
+        if (receiver) {
+          io.to(receiver.socketId).emit("count-updated", {
+            receiverId,
+            senderId,
+            conversationId,
+            businessId,
+            count: senderCount,
+            allCount,
+            allBusinessCount,
+          });
+        }
+
+        ack.success({ message: "Message processed successfully", data: newMessage });
       } catch (error) {
-    sendErrorAlert(error, { source: "server.js" });
-        console.error("Error sending notifications:", error);
+        sendErrorAlert(error, { source: "server.js" });
+        console.error("Error in send-chat-message-user:", error);
         ack.failure("Something went wrong on our end. Please try again in a few moments.");
       }
     }
@@ -850,390 +843,314 @@ io.on("connection", (socket) => {
     socket,
     "send-chat-message-business",
     async ({ receiverId, message, senderId, businessId } = {}, ack) => {
-      console.log(receiverId, message, senderId, businessId);
+      console.log("send-chat-message-business:", { receiverId, message, senderId, businessId });
       try {
-        let role = "User";
-        let roleBusiness = "Business";
+        if (!receiverId || !message || !senderId || !businessId) {
+          ack.failure("Empty parameter");
+          return;
+        }
+
+        const role = "User";
+        const roleBusiness = "Business";
         const newCapitalizedMessage = CapitalizeFirstLetter(message);
         const receiver = getUser(senderId, role);
         const sender = getBusiness(receiverId, roleBusiness);
 
-        if (receiverId && message && senderId && businessId) {
-          const checkBusiness =  await MsmeInformation.findOne({
-            where:{id: businessId}
-          });
-          const checkNewSender = await User.findOne({
-            where: { id: senderId },
-          });
-          const checkNewReceiver = await User.findOne({
-            where: { id: receiverId },
-          });
+        const [checkBusiness, checkNewSender, checkNewReceiver] = await Promise.all([
+          MsmeInformation.findOne({ where: { id: businessId } }),
+          User.findOne({ where: { id: senderId } }),
+          User.findOne({ where: { id: receiverId } }),
+        ]);
 
-          if (checkNewSender && checkNewReceiver && checkBusiness) {
-            let conversation = await Conversation.findOne({
-              where: {
-                businessId,
-                [Op.or]: [
-                  { senderId: senderId, receiverId: receiverId },
-                  { senderId: receiverId, receiverId: senderId },
-                ],
-              },
-              order: [["createdAt", "DESC"]],
-            });
-
-            let conversationId;
-            if (conversation) {
-              conversationId = conversation.id;
-            } else {
-              const newConversation = await Conversation.create({
-                senderId: receiverId,
-                receiverId: senderId,
-                businessId,
-                createdAt: Date.now(),
-              });
-              conversationId = newConversation.id;
-            }
-
-            const newMessage = await Message.create({
-              senderId: receiverId,
-              receiverId: senderId,
-              message: newCapitalizedMessage,
-              viewed: false,
-              businessId,
-              delivered: false,
-              senderDelete: false,
-              receiverDelete: false,
-              createdAt: Date.now(),
-              userType: "User",
-              conversationId,
-            });
-
-            if (newMessage) {
-              
-              if(receiver){
-                io.to(receiver.socketId).emit("new-chat-messages", {
-                  data: "update",
-                });
-              }
-
-              if(sender){
-                io.to(sender.socketId).emit("new-chat-messages", {
-                  data: "update",
-                });
-              }
-
-              if (receiver) {
-                const conversation = await Conversation.findOne({
-                  where: { businessId, senderId, receiverId },
-                });
-
-                if (!conversation) {
-                  return;
-                }
-
-                const messages = await Message.findAll({
-                  where: {
-                    conversationId: conversation.id,
-                    [Op.or]: [{ senderId: senderId }, { senderId: receiverId }],
-                    receiverDelete: false,
-                  },
-                  order: [["createdAt", "ASC"]],
-                });
-
-                const sentMessages = messages.filter(
-                  (msg) => msg.senderId === senderId
-                );
-
-                const receivedMessages = messages.filter(
-                  (msg) => msg.senderId === receiverId
-                );
-
-                const conversationData = {
-                  sent: sentMessages,
-                  received: receivedMessages,
-                };
-
-                io.to(receiver.socketId).emit("new-chat-messages-user", {
-                  data: conversationData,
-                });
-
-                const userBusinesses = await MsmeInformation.findAll({
-                  where: { userId: receiverId },
-                  attributes: ["id"],
-                });
-
-                const userBusinessIds = userBusinesses.map(
-                  (business) => business.id
-                );
-
-                const conversations = await Conversation.findAll({
-                  where: {
-                    [Op.or]: [{ senderId: receiverId }, { receiverId }],
-                  },
-                });
-
-                if (!conversations.length) return;
-
-                const conversationIds = conversations.map((convo) => convo.id);
-
-                const latestMessages = await Promise.all(
-                  conversationIds.map(async (conversationId) => {
-                    return Message.findOne({
-                      where: { conversationId },
-                      order: [["createdAt", "DESC"]],
-                    });
-                  })
-                );
-
-                const filteredConversations = conversations.filter(
-                  (convo) => !userBusinessIds.includes(convo.businessId)
-                );
-
-                const results = await Promise.all(
-                  filteredConversations.map(async (convo) => {
-                    const latestMessage = latestMessages.find(
-                      (msg) => msg.conversationId === convo.id
-                    );
-                    const otherUserId =
-                      convo.senderId === receiverId
-                        ? convo.receiverId
-                        : convo.senderId;
-
-                    const unreadCount = await Message.count({
-                      where: {
-                        conversationId: convo.id,
-                        senderId: otherUserId,
-                        viewed: false,
-                        receiverDelete: false,
-                      },
-                    });
-
-                    const otherUser = await User.findOne({
-                      where: { id: otherUserId },
-                      attributes: [
-                        "id",
-                        "profileImage",
-                        "firstName",
-                        "lastName",
-                      ],
-                    });
-
-                    if (!otherUser) {
-                      throw new Error("Other user not found");
-                    }
-                    let profilePicture = otherUser.profileImage;
-                    let displayName = `${otherUser.firstName} ${otherUser.lastName}`;
-
-                    const business = await MsmeInformation.findOne({
-                      where: { id: convo.businessId, userId: otherUserId },
-                    });
-                    if (business) {
-                      const businessLogoUser = await MsmeAdditionalInfo.findOne(
-                        {
-                          attributes: ["businessLogo"],
-                          where: { businessId: business.id },
-                        }
-                      );
-                      if (businessLogoUser) {
-                        profilePicture = businessLogoUser.businessLogo;
-                      }
-                      displayName = business.businessDisplayName;
-                    }
-
-                    const conversationDetails = {
-                      id: convo.id,
-                      senderId: convo.senderId,
-                      receiverId: convo.receiverId,
-                      businessId: convo.businessId,
-                      createdAt: convo.createdAt,
-                    };
-
-                    return {
-                      businessId: convo.businessId,
-                      displayName,
-                      profilePicture,
-                      latestMessage,
-                      conversationDetails,
-                      unreadCount,
-                    };
-                  })
-                );
-                const allUserDeviceTokens = await FcmToken.findAll({
-                  where: { userId: receiverId, role: "User" },
-                  attributes: ["deviceToken"],
-                });
-
-                if (allUserDeviceTokens.length > 0) {
-                  await sendFcmToTokens(allUserDeviceTokens, {
-                    title: `${checkBusiness.businessDisplayName}`,
-                    body: newCapitalizedMessage,
-                    data: {
-                      navigationId: "directMessage",
-                      receiverId,
-                      senderId,
-                      businessId,
-                      conversationId,
-                    },
-                  });
-                }
-                io.to(receiver.socketId).emit("new-lastest-messages-user", {
-                  data: results,
-                });
-              } else {
-                const allUserDeviceTokens = await FcmToken.findAll({
-                  where: { userId: senderId, role: "User" },
-                  attributes: ["deviceToken"],
-                });
-
-                if (allUserDeviceTokens.length > 0) {
-                  await sendFcmToTokens(allUserDeviceTokens, {
-                    title: `${checkBusiness.businessDisplayName}`,
-                    body: newCapitalizedMessage,
-                    data: {
-                      navigationId: "directMessage",
-                      receiverId: senderId,
-                      senderId: receiverId,
-                      businessId,
-                      conversationId,
-                    },
-                  });
-                }
-              }
-
-              if (sender) {
-                const conversation = await Conversation.findOne({
-                  where: { businessId, senderId, receiverId },
-                });
-
-                if (!conversation) return;
-
-                const messages = await Message.findAll({
-                  where: {
-                    conversationId: conversation.id,
-                    [Op.or]: [{ senderId }, { senderId: receiverId }],
-                    receiverDelete: false,
-                  },
-                  order: [["createdAt", "ASC"]],
-                });
-
-                const sentMessages = messages.filter(
-                  (msg) => msg.senderId === senderId
-                );
-                const receivedMessages = messages.filter(
-                  (msg) => msg.senderId === receiverId
-                );
-
-                const conversationData = {
-                  sent: sentMessages,
-                  received: receivedMessages,
-                };
-
-                io.to(sender.socketId).emit("new-chat-messages-business", {
-                  data: conversationData,
-                });
-              }
-
-              const senderCount = await getUnreadCountForSender({
-                receiverId: senderId,
-                senderId: receiverId,
-                conversationId,
-              });
-              const allCount = await getAllUnreadCount({ receiverId: senderId });
-              const allBusinessCount = await getAllBusinessUnreadCount({
-                receiverId: senderId,
-                businessId,
-              });
-
-              if (receiver) {
-                io.to(receiver.socketId).emit("count-updated", {
-                  receiverId: senderId,
-                  senderId: receiverId,
-                  conversationId,
-                  businessId,
-                  count: senderCount,
-                  allCount,
-                  allBusinessCount,
-                });
-              }
-
-            }
-          } else {
-            ack.failure("Sender, receiver, or business not found");
-            return;
-          }
-        } else {
-          ack.failure("Empty parameter");
+        if (!checkNewSender || !checkNewReceiver || !checkBusiness) {
+          ack.failure("Sender, receiver, or business not found");
           return;
         }
-        ack.success({ message: "Message processed successfully" });
+
+        let conversation = await Conversation.findOne({
+          where: {
+            businessId,
+            [Op.or]: [
+              { senderId: senderId, receiverId: receiverId },
+              { senderId: receiverId, receiverId: senderId },
+            ],
+          },
+          order: [["createdAt", "DESC"]],
+        });
+
+        let conversationId;
+        if (conversation) {
+          conversationId = conversation.id;
+        } else {
+          conversation = await Conversation.create({
+            senderId: receiverId,
+            receiverId: senderId,
+            businessId,
+            createdAt: Date.now(),
+          });
+          conversationId = conversation.id;
+        }
+
+        const newMessage = await Message.create({
+          senderId: receiverId,
+          receiverId: senderId,
+          message: newCapitalizedMessage,
+          viewed: false,
+          businessId,
+          delivered: false,
+          senderDelete: false,
+          receiverDelete: false,
+          createdAt: Date.now(),
+          userType: "User",
+          conversationId,
+        });
+
+        // Fetch conversation messages once for real-time delivery
+        const messages = await Message.findAll({
+          where: {
+            conversationId,
+          },
+          order: [["createdAt", "ASC"]],
+        });
+
+        // 1. Deliver real-time update to Customer (receiver)
+        if (receiver) {
+          io.to(receiver.socketId).emit("new-chat-messages", {
+            data: "update",
+          });
+
+          const customerSentMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(senderId) && !msg.senderDelete
+          );
+          const customerReceivedMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(receiverId) && !msg.receiverDelete
+          );
+
+          io.to(receiver.socketId).emit("new-chat-messages-user", {
+            data: {
+              sent: customerSentMessages,
+              received: customerReceivedMessages,
+            },
+          });
+
+          // Fetch updated conversation list for the customer
+          const userBusinesses = await MsmeInformation.findAll({
+            where: { userId: senderId },
+            attributes: ["id"],
+          });
+          const userBusinessIds = userBusinesses.map((b) => b.id);
+
+          const customerConversations = await Conversation.findAll({
+            where: {
+              [Op.or]: [{ senderId }, { receiverId: senderId }],
+            },
+          });
+
+          if (customerConversations.length > 0) {
+            const conversationIds = customerConversations.map((convo) => convo.id);
+            const latestMessages = await Promise.all(
+              conversationIds.map(async (cId) => {
+                return Message.findOne({
+                  where: { conversationId: cId },
+                  order: [["createdAt", "DESC"]],
+                });
+              })
+            );
+
+            const filteredConversations = customerConversations.filter(
+              (convo) => !userBusinessIds.includes(convo.businessId)
+            );
+
+            const results = await Promise.all(
+              filteredConversations.map(async (convo) => {
+                const latestMessage = latestMessages.find(
+                  (msg) => msg && String(msg.conversationId) === String(convo.id)
+                );
+                const otherUserId =
+                  String(convo.senderId) === String(senderId)
+                    ? convo.receiverId
+                    : convo.senderId;
+
+                const unreadCount = await Message.count({
+                  where: {
+                    conversationId: convo.id,
+                    senderId: otherUserId,
+                    viewed: false,
+                    receiverDelete: false,
+                  },
+                });
+
+                const otherUser = await User.findOne({
+                  where: { id: otherUserId },
+                  attributes: ["id", "profileImage", "firstName", "lastName"],
+                });
+                if (!otherUser) return null;
+
+                let profilePicture = otherUser.profileImage;
+                let displayName = `${otherUser.firstName} ${otherUser.lastName}`;
+
+                const business = await MsmeInformation.findOne({
+                  where: { id: convo.businessId, userId: otherUserId },
+                });
+                if (business) {
+                  const businessLogoUser = await MsmeAdditionalInfo.findOne({
+                    attributes: ["businessLogo"],
+                    where: { businessId: business.id },
+                  });
+                  if (businessLogoUser) {
+                    profilePicture = businessLogoUser.businessLogo;
+                  }
+                  displayName = business.businessDisplayName;
+                }
+
+                const conversationDetails = {
+                  id: convo.id,
+                  senderId: convo.senderId,
+                  receiverId: convo.receiverId,
+                  businessId: convo.businessId,
+                  createdAt: convo.createdAt,
+                };
+
+                return {
+                  businessId: convo.businessId,
+                  displayName,
+                  profilePicture,
+                  latestMessage,
+                  conversationDetails,
+                  unreadCount,
+                };
+              })
+            );
+
+            io.to(receiver.socketId).emit("new-lastest-messages-user", {
+              data: results.filter(Boolean),
+            });
+          }
+        }
+
+        // Send Push Notification to Customer Device Tokens
+        try {
+          const allUserDeviceTokens = await FcmToken.findAll({
+            where: { userId: senderId, role: "User" },
+            attributes: ["deviceToken"],
+          });
+
+          if (allUserDeviceTokens.length > 0) {
+            await sendFcmToTokens(allUserDeviceTokens, {
+              title: `${checkBusiness.businessDisplayName}`,
+              body: newCapitalizedMessage,
+              data: {
+                navigationId: "directMessage",
+                receiverId: senderId,
+                senderId: receiverId,
+                businessId,
+                conversationId,
+              },
+            });
+          }
+        } catch (fcmError) {
+          console.error("FCM push error (send-chat-message-business):", fcmError.message);
+        }
+
+        // 2. Deliver real-time update to Business (sender)
+        if (sender) {
+          io.to(sender.socketId).emit("new-chat-messages", {
+            data: "update",
+          });
+
+          const businessSentMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(receiverId) && !msg.senderDelete
+          );
+          const businessReceivedMessages = messages.filter(
+            (msg) => String(msg.senderId) === String(senderId) && !msg.receiverDelete
+          );
+
+          io.to(sender.socketId).emit("new-chat-messages-business", {
+            data: {
+              sent: businessSentMessages,
+              received: businessReceivedMessages,
+            },
+          });
+        }
+
+        // 3. Update unread count badges for the customer
+        const senderCount = await getUnreadCountForSender({
+          receiverId: senderId,
+          senderId: receiverId,
+          conversationId,
+        });
+        const allCount = await getAllUnreadCount({ receiverId: senderId });
+        const allBusinessCount = await getAllBusinessUnreadCount({
+          receiverId: senderId,
+          businessId,
+        });
+
+        if (receiver) {
+          io.to(receiver.socketId).emit("count-updated", {
+            receiverId: senderId,
+            senderId: receiverId,
+            conversationId,
+            businessId,
+            count: senderCount,
+            allCount,
+            allBusinessCount,
+          });
+        }
+
+        ack.success({ message: "Message processed successfully", data: newMessage });
       } catch (error) {
-    sendErrorAlert(error, { source: "server.js" });
-        console.error("Error sending notifications:", error);
+        sendErrorAlert(error, { source: "server.js" });
+        console.error("Error in send-chat-message-business:", error);
         ack.failure("Something went wrong on our end. Please try again in a few moments.");
       }
     }
   );
 
-  onSocketEvent(socket, "getSingleConversation", async (data, ack, callback) => {
+  onSocketEvent(socket, "getSingleConversation", async (data, ack) => {
     try {
-      const { senderId, businessId, conversationId, id } = data;
+      const { senderId, businessId, conversationId, id } = data || {};
 
-      if (!senderId || !id || !businessId || !conversationId) {
+      const currentUserId = id || senderId;
+      if (!currentUserId || !conversationId) {
         ack.failure("Empty parameter");
         return;
       }
 
-      let recieverId;
+      const conversationRecord = await Conversation.findOne({
+        where: { id: conversationId },
+      });
 
-      if (senderId === id) {
-        const otherUser = await Message.findOne({
-          where: {
-            businessId,
-            conversationId,
-            [Op.or]: [
-              { senderId: { [Op.ne]: id } },
-              { recieverId: { [Op.ne]: id } },
-            ],
-          },
-        });
-
-        if (!otherUser) {
-          ack.failure("Other user not found");
-          return;
-        }
-
-        recieverId =
-          otherUser.senderId === id ? otherUser.recieverId : otherUser.senderId;
-      } else {
-        recieverId = id;
+      if (!conversationRecord) {
+        ack.failure("Conversation not found");
+        return;
       }
+
+      const otherUserId =
+        String(conversationRecord.senderId) === String(currentUserId)
+          ? conversationRecord.receiverId
+          : conversationRecord.senderId;
 
       const messages = await Message.findAll({
         where: {
-          businessId,
           conversationId,
           [Op.or]: [
-            {
-              senderId,
-              recieverId: recieverId,
-            },
-            {
-              senderId: recieverId,
-              recieverId: senderId,
-            },
+            { senderId: currentUserId, senderDelete: false },
+            { receiverId: currentUserId, receiverDelete: false },
           ],
-          recieverDelete: false,
         },
-        order: [["createdAt", "DESC"]],
+        order: [["createdAt", "ASC"]],
       });
 
-      const sentMessages = messages.filter((msg) => msg.senderId === senderId);
+      const sentMessages = messages.filter(
+        (msg) => String(msg.senderId) === String(currentUserId)
+      );
       const receivedMessages = messages.filter(
-        (msg) => msg.senderId === recieverId
+        (msg) => String(msg.receiverId) === String(currentUserId)
       );
 
       const conversation = {
-        otherUserId: recieverId,
+        otherUserId,
+        conversationDetails: conversationRecord,
         sent: sentMessages,
         received: receivedMessages,
       };
@@ -1243,13 +1160,9 @@ io.on("connection", (socket) => {
         data: conversation,
       });
     } catch (error) {
-    sendErrorAlert(error, { source: "server.js" });
-      if (typeof callback === "function") {
-        callback({
-          status: "FAILURE",
-          message: "Something went wrong on our end. Please try again in a few moments.",
-        });
-      }
+      sendErrorAlert(error, { source: "server.js" });
+      console.error("Error in getSingleConversation:", error);
+      ack.failure("Something went wrong on our end. Please try again in a few moments.");
     }
   });
 
