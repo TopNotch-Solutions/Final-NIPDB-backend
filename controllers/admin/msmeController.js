@@ -1429,13 +1429,13 @@ exports.block = async (req, res) => {
 
     const business = await MsmeInformation.findOne({
       where: { id },
-      attributes: ["userId", "businessRegistrationName"],
+      attributes: ["userId", "businessRegistrationName", "businessDisplayName"],
       transaction,
     });
 
     if (!business || !business.userId) throw new Error("No such user found in our database");
 
-    const { userId, businessRegistrationName } = business;
+    const { userId, businessRegistrationName, businessDisplayName } = business;
 
     const user = await User.findOne({ where: { id: userId }, attributes: ["email"], transaction });
     if (!user || !user.email) throw new Error("User email not found");
@@ -1445,10 +1445,17 @@ exports.block = async (req, res) => {
       ? "Your business has been blocked due to a violation of our terms."
       : "Your business has been unblocked and is now visible again.";
 
+    const businessName = businessDisplayName || businessRegistrationName;
+    const notificationTitle = businessName
+      ? `${businessName} - ${block ? "Business Blocked" : "Business Unblocked"}`
+      : block
+      ? "Business Blocked"
+      : "Business Unblocked";
+
     await Notification.create(
       {
         userId,
-        title: block ? "Business Blocked" : "Business Unblocked",
+        title: notificationTitle,
         notification: notificationMessage,
         type: "Alert",
         priority: "High",
@@ -1478,7 +1485,7 @@ exports.block = async (req, res) => {
     });
 
     sendFcmToTokens(deviceTokens, {
-      title: block ? "Business Blocked" : "Business Unblocked",
+      title: notificationTitle,
       body: notificationMessage,
       imageUrl: businessAdditional?.businessLogo
         ? resolveNotificationImageUrl(businessAdditional.businessLogo, "msmes")
@@ -1486,6 +1493,7 @@ exports.block = async (req, res) => {
       sound: "default",
       data: {
         type: block ? "business_blocked" : "business_unblocked",
+        businessId: String(id),
       },
     }).catch((err) => console.error("Failed to send FCM notifications:", err));
 
