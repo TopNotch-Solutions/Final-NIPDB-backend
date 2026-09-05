@@ -77,14 +77,6 @@ exports.createAll = async (req, res) => {
       const uniqueTokens = [...new Set(allDeviceTokens)];
       console.log(uniqueTokens);
 
-      await sendFcmToTokens(uniqueTokens, {
-        title,
-        body: notification,
-        imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
-        sound: "default",
-        data: { navigationId: "NotificationDetails" },
-      });
-
       // Store notifications in the database, avoiding duplicates
       const existingPushNotifications = await PushNotification.findAll({
         where: { deviceToken: uniqueTokens },
@@ -121,13 +113,26 @@ exports.createAll = async (req, res) => {
       }));
       await Notification.bulkCreate(notificationRecords);
 
-      await NotificationHistory.create({
+      const createdHistory = await NotificationHistory.create({
         notification,
         createdAt: Date.now(),
         senderId,
         type,
         priority,
       });
+
+      if (uniqueTokens.length > 0) {
+        await sendFcmToTokens(uniqueTokens, {
+          title,
+          body: notification,
+          imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
+          sound: "default",
+          data: {
+            navigationId: "NotificationDetails",
+            notificationId: String(createdHistory.id),
+          },
+        });
+      }
 
       res.status(200).json({
         status: "SUCCESS",
@@ -195,7 +200,7 @@ exports.createAll = async (req, res) => {
         viewed: false,
       }));
 
-      await NotificationHistory.create({
+      const createdHistory = await NotificationHistory.create({
         notification,
         createdAt: Date.now(),
         senderId,
@@ -211,7 +216,9 @@ exports.createAll = async (req, res) => {
           body: notification,
           imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
           sound: "default",
-          data: { navigationId: "notification" },
+          data: {
+            navigationId: "notification",
+          },
         });
       }
 
@@ -289,7 +296,7 @@ exports.createSingle = async (req, res) => {
     });
     const deviceTokens = userDeviceTokens.map((token) => token.deviceToken);
 
-    await Notification.create({
+    const createdNotification = await Notification.create({
       userId,
       notification,
       title,
@@ -300,7 +307,7 @@ exports.createSingle = async (req, res) => {
       viewed: false,
     });
 
-    await NotificationHistory.create({
+    const createdHistory = await NotificationHistory.create({
       notification,
       senderId,
       createdAt: Date.now(),
@@ -341,7 +348,10 @@ exports.createSingle = async (req, res) => {
         body: notification,
         imageUrl: notificationImage,
         sound: "default",
-        data: { navigationId: "notificationMsme" },
+        data: {
+          navigationId: "notificationMsme",
+          notificationId: String(createdNotification.id),
+        },
       });
 
       return res.status(200).json({
