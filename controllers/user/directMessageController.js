@@ -235,7 +235,7 @@ exports.create = async (req, res) => {
 //       data: conversations,
 //     });
 //   } catch (error) {
-    sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
+//     sendErrorAlert(error, { source: "controllers/user/directMessageController.js" });
 //     console.error("Error retrieving conversations:", error);
 //     res.status(500).json({
 //       status: "FAILURE",
