@@ -105,6 +105,19 @@ exports.submitBusinessFeedback = async (req, res) => {
         ? String(displayName).trim()
         : `${user.firstName} ${user.lastName}`.trim();
 
+    const existingReview = await BusinessReview.findOne({
+      where: { userId, businessId },
+      transaction,
+    });
+
+    if (existingReview) {
+      await transaction.rollback();
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "You have already submitted a review for this business.",
+      });
+    }
+
     const existingRating = await BusinessRating.findOne({
       where: { userId, businessId },
       transaction,

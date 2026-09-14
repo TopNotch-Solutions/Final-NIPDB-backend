@@ -46,6 +46,12 @@ const BusinessReview = sequelize.define(
   },
   {
     timestamps: true,
+    indexes: [
+      {
+        unique: true,
+        fields: ["userId", "businessId"],
+      },
+    ],
   }
 );
 
