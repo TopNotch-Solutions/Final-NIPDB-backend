@@ -544,6 +544,20 @@ exports.singleUser = async (req, res) => {
       });
     }
 
+    const business = await MsmeInformation.findOne({
+      where: { id: businessId },
+      attributes: ["id", "isBlocked"],
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Business not found",
+      });
+    }
+
+    const isBlocked = !!business.isBlocked;
+
     const conversation = await Conversation.findOne({
       where: {
         businessId,
@@ -555,7 +569,8 @@ exports.singleUser = async (req, res) => {
     if (!conversation) {
       const conversationDataNon = {
         sent: [],
-        received: []
+        received: [],
+        isBlocked,
       };
       return res.status(404).json({
         status: "FAILURE",
@@ -587,6 +602,7 @@ exports.singleUser = async (req, res) => {
     const conversationData = {
       sent: sentMessages,
       received: receivedMessages,
+      isBlocked,
     };
 
     res.status(200).json({
@@ -616,6 +632,21 @@ exports.singleChatBusiness = async (req, res) => {
       });
     }
     console.log(businessId,receiverId,id)
+
+    const business = await MsmeInformation.findOne({
+      where: { id: businessId },
+      attributes: ["id", "isBlocked"],
+    });
+
+    if (!business) {
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "Business not found",
+      });
+    }
+
+    const isBlocked = !!business.isBlocked;
+
     const conversation = await Conversation.findOne({
       where: {
         businessId,
@@ -627,7 +658,8 @@ exports.singleChatBusiness = async (req, res) => {
     if (!conversation) {
       const conversationDatanNon = {
         sent:[],
-        received:[]
+        received:[],
+        isBlocked,
       }
       return res.status(404).json({
         status: "FAILURE",
@@ -662,6 +694,7 @@ exports.singleChatBusiness = async (req, res) => {
     const conversationData = {
       sent: sentMessages,
       received: receivedMessages,
+      isBlocked,
     };
 
     res.status(200).json({
