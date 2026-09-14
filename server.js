@@ -586,13 +586,26 @@ io.on("connection", (socket) => {
         const receiver = getBusiness(receiverId, roleBusiness);
         const sender = getUser(senderId, role);
 
-        const [checkNewSender, checkNewReceiver] = await Promise.all([
+        const [checkNewSender, checkNewReceiver, checkBusiness] = await Promise.all([
           User.findOne({ where: { id: senderId } }),
           User.findOne({ where: { id: receiverId } }),
+          MsmeInformation.findOne({ where: { id: businessId } }),
         ]);
 
         if (!checkNewSender || !checkNewReceiver) {
           ack.failure("Sender or receiver not found");
+          return;
+        }
+
+        if (!checkBusiness) {
+          ack.failure("Business not found");
+          return;
+        }
+
+        if (checkBusiness.isBlocked) {
+          ack.failure(
+            "This business has been blocked and is currently unavailable for messaging. Please contact support for further assistance."
+          );
           return;
         }
 
@@ -867,6 +880,13 @@ io.on("connection", (socket) => {
 
         if (!checkNewSender || !checkNewReceiver || !checkBusiness) {
           ack.failure("Sender, receiver, or business not found");
+          return;
+        }
+
+        if (checkBusiness.isBlocked) {
+          ack.failure(
+            "This business has been blocked and cannot send messages. Please contact support for further assistance."
+          );
           return;
         }
 
