@@ -25,6 +25,11 @@ const BusinessReview = sequelize.define(
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    displayName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+      defaultValue: null,
+    },
     rating: {
       type: DataTypes.INTEGER,
       allowNull: false,

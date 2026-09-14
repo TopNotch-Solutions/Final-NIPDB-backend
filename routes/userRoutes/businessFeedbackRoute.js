@@ -8,6 +8,8 @@ const businessFeedbackUserRouter = Router();
 
 businessFeedbackUserRouter.post(
   "/submit",
+  tokenAuthMiddleware,
+  checkUser,
   reviewUploadMiddleware.uploadSingle,
   businessFeedbackController.submitBusinessFeedback
 );

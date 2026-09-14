@@ -46,10 +46,12 @@ const buildBusinessRatingSummary = async (businessId, transaction = null) => {
 exports.submitBusinessFeedback = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
-    const { userId = null, businessId, score, review } = req.body;
+    const userId = req.user.id;
+    const { businessId, score, review, displayName } = req.body;
     const reviewImage = req.file ? `reviews/${req.file.filename}` : null;
 
     if (!businessId || !score || !review) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
         message: "businessId, score and review are required.",
@@ -58,6 +60,7 @@ exports.submitBusinessFeedback = async (req, res) => {
 
     const numericScore = Number(score);
     if (!Number.isInteger(numericScore) || numericScore < 1 || numericScore > 5) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
         message: "score must be an integer between 1 and 5.",
@@ -66,6 +69,7 @@ exports.submitBusinessFeedback = async (req, res) => {
 
     const sanitizedReview = String(review).trim();
     if (!sanitizedReview) {
+      await transaction.rollback();
       return res.status(400).json({
         status: "FAILURE",
         message: "review cannot be empty.",
@@ -73,47 +77,44 @@ exports.submitBusinessFeedback = async (req, res) => {
     }
 
     const [user, business] = await Promise.all([
-      userId
-        ? User.findOne({
-            where: { id: userId },
-            attributes: ["id", "firstName", "lastName", "profileImage"],
-            transaction,
-          })
-        : null,
+      User.findOne({
+        where: { id: userId },
+        attributes: ["id", "firstName", "lastName", "profileImage"],
+        transaction,
+      }),
       MsmeInformation.findOne({ where: { id: businessId }, transaction }),
     ]);
 
     if (!business) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "We couldn't find a record matching the business information provided.",
       });
     }
-    if (userId && !user) {
+    if (!user) {
+      await transaction.rollback();
       return res.status(404).json({
         status: "FAILURE",
         message: "No account matches the provided details.",
       });
     }
 
-    if (userId) {
-      const existingRating = await BusinessRating.findOne({
-        where: { userId, businessId },
-        transaction,
-      });
+    const sanitizedDisplayName =
+      displayName !== undefined && displayName !== null && String(displayName).trim()
+        ? String(displayName).trim()
+        : `${user.firstName} ${user.lastName}`.trim();
 
-      if (existingRating) {
-        await existingRating.update({ score: numericScore }, { transaction });
-      } else {
-        await BusinessRating.create({
-          userId,
-          businessId,
-          score: numericScore,
-        }, { transaction });
-      }
+    const existingRating = await BusinessRating.findOne({
+      where: { userId, businessId },
+      transaction,
+    });
+
+    if (existingRating) {
+      await existingRating.update({ score: numericScore }, { transaction });
     } else {
       await BusinessRating.create({
-        userId: null,
+        userId,
         businessId,
         score: numericScore,
       }, { transaction });
@@ -123,6 +124,7 @@ exports.submitBusinessFeedback = async (req, res) => {
       userId,
       businessId,
       review: sanitizedReview,
+      displayName: sanitizedDisplayName,
       rating: numericScore,
       reviewImage,
     }, { transaction });

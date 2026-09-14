@@ -2050,6 +2050,29 @@ exports.report = async (req, res) => {
       { transaction }
     );
 
+    const businessName =
+      existingBusiness.businessDisplayName ||
+      existingBusiness.businessRegistrationName ||
+      "a business";
+
+    const admins = await Admin.findAll({
+      attributes: ["id"],
+      transaction,
+    });
+
+    if (admins.length > 0) {
+      const adminNotifications = admins.map((admin) => ({
+        userId: admin.id,
+        title: `Business Reported: ${businessName}`,
+        notification: `${businessName} was reported by ${existingUser.firstName} ${existingUser.lastName} for "${title}".`,
+        type: "Alert",
+        priority: "High",
+        viewed: false,
+      }));
+
+      await AdminNotification.bulkCreate(adminNotifications, { transaction });
+    }
+
     await transaction.commit();
 
     return res.status(201).json({
