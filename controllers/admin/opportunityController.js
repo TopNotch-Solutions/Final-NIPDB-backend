@@ -173,12 +173,6 @@ exports.update = async (req, res) => {
       message: "User is required"
     });
   }
-  if (!link) {
-    return res.status(400).json({
-      status: "FAILURE",
-      message: "Link is required"
-    });
-  }
 
   const transaction = await sequelize.transaction();
   try {
