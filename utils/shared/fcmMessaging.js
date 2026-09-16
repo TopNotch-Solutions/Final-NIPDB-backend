@@ -49,6 +49,7 @@ const resolveNotificationImageUrl = (image, defaultFolder = null) => {
     "bsos",
     "reviews",
     "users",
+    "notifications",
   ];
 
   for (const folder of knownFolders) {
@@ -89,6 +90,9 @@ const resolveNotificationImageUrl = (image, defaultFolder = null) => {
   }
   if (cleanPath.startsWith("bso")) {
     return `${baseUrl}/bsos/${cleanPath}`;
+  }
+  if (cleanPath.startsWith("imageUrl") || cleanPath.startsWith("notification")) {
+    return `${baseUrl}/notifications/${cleanPath}`;
   }
 
   return `${baseUrl}/msmes/${cleanPath}`;

@@ -39,7 +39,11 @@ const NotificationHistory = sequelize.define(
                 msg: "Priority must be either 'High', 'Medium' or 'Low'"
               }
             }
-          }
+          },
+          imageUrl: {
+            type: DataTypes.STRING,
+            allowNull: true,
+          },
           
     },{
         timestamps: true

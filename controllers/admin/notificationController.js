@@ -18,8 +18,9 @@ const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
 exports.createAll = async (req, res) => {
   try {
-    let { notification, senderId, type, priority, notificationActive, title, imageUrl, image } =
+    let { notification, senderId, type, priority, notificationActive, title } =
       req.body;
+      const imageUrl = req.file?.filename;
     console.log(
       notification,
       senderId,
@@ -42,6 +43,8 @@ exports.createAll = async (req, res) => {
         message: "Empty parameter",
       });
     }
+
+    const savedImageUrl = resolveNotificationImageUrl(imageUrl, "notifications") || null;
     
     if (notificationActive === "All") {
       title = CapitalizeFirstLetter(title);
@@ -108,6 +111,7 @@ exports.createAll = async (req, res) => {
         type,
         priority,
         title,
+        imageUrl: imageUrl,
         createdAt: Date.now(),
         viewed: false,
       }));
@@ -119,13 +123,14 @@ exports.createAll = async (req, res) => {
         senderId,
         type,
         priority,
+        imageUrl: imageUrl,
       });
 
       if (uniqueTokens.length > 0) {
         await sendFcmToTokens(uniqueTokens, {
           title,
           body: notification,
-          imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
+          imageUrl: savedImageUrl,
           sound: "default",
           data: {
             navigationId: "NotificationDetails",
@@ -196,6 +201,7 @@ exports.createAll = async (req, res) => {
         type,
         priority,
         title,
+        imageUrl: imageUrl,
         createdAt: Date.now(),
         viewed: false,
       }));
@@ -206,6 +212,7 @@ exports.createAll = async (req, res) => {
         senderId,
         type,
         priority,
+        imageUrl: imageUrl,
       });
 
       await Notification.bulkCreate(notifications);
@@ -214,7 +221,7 @@ exports.createAll = async (req, res) => {
         await sendFcmToTokens(fcmTokens, {
           title,
           body: notification,
-          imageUrl: resolveNotificationImageUrl(imageUrl || image) || null,
+          imageUrl: savedImageUrl,
           sound: "default",
           data: {
             navigationId: "notification",
@@ -296,6 +303,21 @@ exports.createSingle = async (req, res) => {
     });
     const deviceTokens = userDeviceTokens.map((token) => token.deviceToken);
 
+    let notificationImage = imageUrl || image ? resolveNotificationImageUrl(imageUrl || image) : null;
+    if (!notificationImage && businessId) {
+      try {
+        const businessLogoInfo = await MsmeAdditionalInfo.findOne({
+          where: { businessId },
+          attributes: ["businessLogo"],
+        });
+        notificationImage = businessLogoInfo?.businessLogo
+          ? resolveNotificationImageUrl(businessLogoInfo.businessLogo, "msmes")
+          : null;
+      } catch (e) {
+        console.error("Error fetching business logo for single notification:", e.message);
+      }
+    }
+
     const createdNotification = await Notification.create({
       userId,
       notification,
@@ -305,6 +327,7 @@ exports.createSingle = async (req, res) => {
       type,
       priority,
       viewed: false,
+      imageUrl: notificationImage,
     });
 
     const createdHistory = await NotificationHistory.create({
@@ -313,6 +336,7 @@ exports.createSingle = async (req, res) => {
       createdAt: Date.now(),
       type,
       priority,
+      imageUrl: notificationImage,
     });
 
     const mailOptions = {
@@ -328,21 +352,6 @@ exports.createSingle = async (req, res) => {
     });
 
     if (deviceTokens.length > 0) {
-      let notificationImage = imageUrl || image ? resolveNotificationImageUrl(imageUrl || image) : null;
-      if (!notificationImage && businessId) {
-        try {
-          const businessLogoInfo = await MsmeAdditionalInfo.findOne({
-            where: { businessId },
-            attributes: ["businessLogo"],
-          });
-          notificationImage = businessLogoInfo?.businessLogo
-            ? resolveNotificationImageUrl(businessLogoInfo.businessLogo, "msmes")
-            : null;
-        } catch (e) {
-          console.error("Error fetching business logo for single notification:", e.message);
-        }
-      }
-
       await sendFcmToTokens(deviceTokens, {
         title,
         body: notification,

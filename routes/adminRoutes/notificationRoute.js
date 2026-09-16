@@ -2,9 +2,10 @@ const {Router} = require('express');
 const notificationController = require('../../controllers/admin/notificationController');
 const {tokenAuthMiddleware} = require("../../middlewares/web/authMiddleware");
 const {checkAdmin} = require('../../middlewares/web/authMiddleware');
+const notificationUploadMiddleware = require('../../middlewares/shared/notificationUploadMiddleware');
 const notificationAdminRouter = Router();
 
-notificationAdminRouter.post('/create',tokenAuthMiddleware, checkAdmin, notificationController.createAll);
+notificationAdminRouter.post('/create',tokenAuthMiddleware, checkAdmin, notificationUploadMiddleware.uploadSingle, notificationController.createAll);
 
 notificationAdminRouter.post('/create/single/:id',tokenAuthMiddleware, checkAdmin, notificationController.createSingle);
 

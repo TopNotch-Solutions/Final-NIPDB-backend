@@ -604,7 +604,7 @@ io.on("connection", (socket) => {
 
         if (checkBusiness.isBlocked) {
           ack.failure(
-            "This business has been blocked and is currently unavailable for messaging. Please contact support for further assistance."
+            "This business account has been temporarily restricted from receiving messages"
           );
           return;
         }
@@ -885,7 +885,7 @@ io.on("connection", (socket) => {
 
         if (checkBusiness.isBlocked) {
           ack.failure(
-            "This business has been blocked and cannot send messages. Please contact support for further assistance."
+            "This business account has been temporarily restricted from sending messages."
           );
           return;
         }
