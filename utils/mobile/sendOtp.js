@@ -117,7 +117,14 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       };
     } else {
       const token = crypto.randomBytes(32).toString('hex');
-      resetLink = `http://localhost:3000/reset-password?token=${token}&userId=${id}`;
+      const env = (process.env.ENVIRONMENT || "").toLowerCase();
+      const frontendBaseUrl =
+        env === "prod" || env === "production"
+          ? "https://in4msmeportal.nipdb.com"
+          : env === "uat"
+            ? "http://41.219.71.112:8080"
+            : "http://localhost:3000";
+      resetLink = `${frontendBaseUrl}/reset-password?token=${token}&userId=${id}`;
       hashedOTP = await bcrypt.hash(token, 10);
 
       expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
@@ -224,20 +231,26 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       console.error("Failed to send OTP email:", mailError.message);
     });
 
-    // 🔹 Prepare professional API response
-    const message = subject === "In4MSME Account Verification"
-      ? `Verification OTP sent to ${email}.`
-      : `Email sent to ${email}.`;
+    const isForgotPassword = /forgot password/i.test(subject || "");
+    const message = isForgotPassword
+      ? "If an account exists for this email, a verification code has been sent."
+      : subject === "In4MSME Account Verification"
+        ? `Verification OTP sent to ${email}.`
+        : `Email sent to ${email}.`;
 
     const response = {
       success: true,
       statusCode: 200,
       message,
-      userId: id
     };
 
+    // Avoid returning userId on forgot-password flows (user enumeration).
+    if (!isForgotPassword) {
+      response.userId = id;
+    }
+
     if (subject === "In4MSME Account Verification") {
-      response.data.verify = true;
+      response.data = { verify: true };
     }
 
     return res.status(200).json(response);

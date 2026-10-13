@@ -80,9 +80,7 @@ exports.signup = async (req, res) => {
     return res.status(409).json({
       success: false,
       statusCode: 409,
-       message: "The provided email is already registered and verified.",
-      userId: existingUser.id
-
+      message: "Unable to complete registration with the provided details.",
     });
   }
 
@@ -218,7 +216,7 @@ exports.verifyOTP = async (req, res) => {
 };
 
 exports.verifyForgotOTP = async (req, res) => {
-  const { otp, userId } = req.body;
+  const { otp, userId, email } = req.body;
   if (!otp) {
       return res.status(400).json({
         status: "FAILURE",
@@ -226,30 +224,41 @@ exports.verifyForgotOTP = async (req, res) => {
       });
     }
 
-    if (!userId) {
+    if (!userId && !email) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "User ID required fields",
+        message: "Email or User ID required fields",
       });
     }
   const t = await sequelize.transaction();
 
   try {
-    const verifyUser = await OTP.findOne({ where: { userId }, transaction: t });
+    let resolvedUserId = userId;
+    if (!resolvedUserId && email) {
+      const existingUser = await User.findOne({
+        where: { email },
+        attributes: ["id"],
+        transaction: t,
+      });
+      resolvedUserId = existingUser?.id;
+    }
+
+    const verifyUser = resolvedUserId
+      ? await OTP.findOne({ where: { userId: resolvedUserId }, transaction: t })
+      : null;
 
     if (!verifyUser) {
       await t.rollback();
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message:
-          "Account record doesn't exist or has been verified already. Please sign up or login.",
+        message: "Invalid or expired verification code. Please try again.",
       });
     }
 
     const { expiresAt, otp: hashedOTP } = verifyUser;
 
     if (new Date(expiresAt).getTime() < Date.now()) {
-      await OTP.destroy({ where: { userId }, transaction: t });
+      await OTP.destroy({ where: { userId: resolvedUserId }, transaction: t });
       await t.commit();
       return res.status(400).json({
         status: "FAILURE",
@@ -257,7 +266,6 @@ exports.verifyForgotOTP = async (req, res) => {
       });
     }
 
-    // 🔹 Validate OTP
     const isValidOTP = await bcrypt.compare(otp, hashedOTP);
     if (!isValidOTP) {
       await t.rollback();
@@ -267,7 +275,7 @@ exports.verifyForgotOTP = async (req, res) => {
       });
     }
 
-    await OTP.destroy({ where: { userId }, transaction: t });
+    await OTP.destroy({ where: { userId: resolvedUserId }, transaction: t });
     await t.commit();
 
     return res.status(200).json({
@@ -389,9 +397,9 @@ exports.login = async (req, res) => {
 
     if (!user) {
       await t.rollback();
-      return res.status(404).json({
+      return res.status(401).json({
         status: "FAILURE",
-        message: "This account doesn't exist. Enter a different account or sign up.",
+        message: "Invalid credentials. Please try again.",
       });
     }
 
@@ -508,17 +516,23 @@ exports.forgotPasswordEmail = async (req, res) => {
 
   try {
     const existingUser = await User.findOne({ where: { email } });
+    const subject = "In4MSME Forgot Password Verification";
 
-    if (!existingUser) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "User not found with the provided email.",
-      });
+    if (existingUser) {
+      await sendOTPVerification(
+        { id: existingUser.id, email, role: "User" },
+        res,
+        { subject }
+      );
+      return;
     }
 
-    const userId = existingUser.id;
-    const subject = "In4MSME Forgot Password Verification";
-    await sendOTPVerification({ id: userId, email, role: "User" }, res, { subject });
+    return res.status(200).json({
+      success: true,
+      statusCode: 200,
+      message:
+        "If an account exists for this email, a verification code has been sent.",
+    });
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error("Forgot Password Email Error:", error);
@@ -549,19 +563,11 @@ exports.validateUser = async (req, res) => {
 
     await t.commit();
 
-    if (existingUser) {
-      return res.status(200).json({
-        status: "SUCCESS",
-        returningUser: true,
-        message: "Returning user detected.",
-      });
-    } else {
-      return res.status(200).json({
-        status: "FAILURE",
-        returningUser: false,
-        message: "Not a returning user.",
-      });
-    }
+    return res.status(200).json({
+      status: "SUCCESS",
+      returningUser: Boolean(existingUser),
+      message: "Validation completed.",
+    });
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback(); // rollback if something fails
@@ -819,9 +825,9 @@ exports.forgotPasswordNewPassword = async (req, res) => {
 
     if (!existingUser) {
       await t.rollback();
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message: "No account matches the provided details.",
+        message: "Unable to update password with the provided details.",
         data: null,
       });
     }
@@ -849,7 +855,7 @@ exports.forgotPasswordNewPassword = async (req, res) => {
 
     await User.update(
       { password: hashedPassword, isMigratedUser: false },
-      { where: { id: userId }, transaction: t }
+      { where: { id: existingUser.id }, transaction: t }
     );
 
     await t.commit();
@@ -885,21 +891,23 @@ exports.forgotPasswordResendOTP = async (req, res) => {
     const existingUser = await User.findOne({
       where: { email },
     });
+    const subject = "In4MSME Forgot Password Resend OTP Verification";
 
-    if (!existingUser) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "No account matches the provided details.",
-      });
+    if (existingUser) {
+      await sendOTPVerification(
+        { id: existingUser.id, email, role: "User" },
+        res,
+        { subject }
+      );
+      return;
     }
 
-    const userId = existingUser.id;
-    const subject = "In4MSME Forgot Password Resend OTP Verification";
-    await sendOTPVerification(
-      { id: userId, email, role: "User" },
-      res,
-      { subject }
-    );
+    return res.status(200).json({
+      success: true,
+      statusCode: 200,
+      message:
+        "If an account exists for this email, a verification code has been sent.",
+    });
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
     console.error("Forgot Password Resend OTP Error:", error);

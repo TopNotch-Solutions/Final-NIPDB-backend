@@ -2,9 +2,7 @@ const transporter = require("./mailTransporter");
 require("dotenv").config();
 
 const ERROR_RECIPIENTS = [
-  "PWilhelm@mtc.com.na",
-  "TKandjimwena@mtc.com.na",
-  "RFangda@mtc.com.na"
+  "PWilhelm@mtc.com.na"
 ];
 
 const isTokenExpiredError = (error) => {

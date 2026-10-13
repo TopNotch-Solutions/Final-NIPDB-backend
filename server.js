@@ -3,7 +3,7 @@ const bodyParser = require("body-parser");
 const sequelize = require("./config/dbConfig");
 const cors = require("cors");
 const cookieParser = require("cookie-parser");
-const { createProxyMiddleware } = require('http-proxy-middleware');
+const helmet = require("helmet");
 const http = require("http");
 const rateLimit = require("express-rate-limit");
 const { Server } = require("socket.io");
@@ -59,13 +59,49 @@ const io = new Server(server, {
     methods: ["GET", "POST", "DELETE", "PUT", "PATCH"],
   },
 });
-// const limiter = rateLimit({
-//   windowMs: 1 * 60 * 1000, // 1 minute
-//   max: 18, // Limit each IP to 100 requests per minute
-// });
+const generalLimiter = rateLimit({
+  windowMs: 1 * 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: "FAILURE",
+    message: "Too many requests. Please try again shortly.",
+  },
+});
 
-// app.use(limiter)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 40,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    status: "FAILURE",
+    message: "Too many authentication attempts. Please try again later.",
+  },
+});
 
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      useDefaults: false,
+      directives: {
+        defaultSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'none'"],
+        formAction: ["'none'"],
+      },
+    },
+    hsts: {
+      maxAge: 63072000,
+      includeSubDomains: true,
+      preload: false,
+    },
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
+
+app.use(generalLimiter);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
@@ -80,8 +116,8 @@ app.use(
   })
 );
 
-app.use("/auth/admin", authAdminRouter);
-app.use("/auth/user", authUserRouter);
+app.use("/auth/admin", authLimiter, authAdminRouter);
+app.use("/auth/user", authLimiter, authUserRouter);
 app.use("/bso/admin", bsoAdminRouter);
 app.use("/bso/user", bsoUserRouter);
 app.use("/region/admin", regionAdminRouter);

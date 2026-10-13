@@ -43,9 +43,10 @@ exports.signup = async (req, res) => {
     const existingUser = await Admin.findOne({ where: { email } });
 
     if (existingUser) {
-      return res
-        .status(409)
-        .json({ status: "FAILURE", message: "Email provided already exists" });
+      return res.status(409).json({
+        status: "FAILURE",
+        message: "Unable to complete registration with the provided details.",
+      });
     }
 
     const salt = await bcrypt.genSalt();
@@ -402,15 +403,22 @@ exports.forgotPassword = async (req, res) => {
         email,
       },
     });
-    if (!existingUser) {
-      return res
-        .status(404)
-        .json({ status: "FAILURE", message: "User not found!" });
-    }
-    const userId = existingUser.id;
     const subject = "IN4MSME Forgot Password Verification";
-    await sendOTPVerification({ id: userId, email, role: "Admin" }, res, {
-      subject,
+
+    if (existingUser) {
+      await sendOTPVerification(
+        { id: existingUser.id, email, role: "Admin" },
+        res,
+        { subject }
+      );
+      return;
+    }
+
+    return res.status(200).json({
+      success: true,
+      statusCode: 200,
+      message:
+        "If an account exists for this email, a verification code has been sent.",
     });
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/admin/authController.js" });
