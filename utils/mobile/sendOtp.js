@@ -4,10 +4,10 @@ const sequelize = require("../../config/dbConfig");
 const OTP = require("../../models/otpVerification");
 const transporter = require("../shared/mailTransporter");
 const sendErrorAlert = require("../shared/sendErrorAlert");
+const getFrontendBaseUrl = require("../shared/frontendBaseUrl");
 require("dotenv").config();
 
-const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
-  console.log(id, email,role, subject)
+const sendOTPVerification = async ({ id, email, role }, res, { subject, omitUserId = false }) => {
   if (!id) {
       return res.status(400).json({
         status: "FAILURE",
@@ -117,13 +117,7 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       };
     } else {
       const token = crypto.randomBytes(32).toString('hex');
-      const env = (process.env.ENVIRONMENT || "").toLowerCase();
-      const frontendBaseUrl =
-        env === "prod" || env === "production"
-          ? "https://in4msmeportal.nipdb.com"
-          : env === "uat"
-            ? "http://41.219.71.112:8080"
-            : "http://localhost:3000";
+      const frontendBaseUrl = getFrontendBaseUrl();
       resetLink = `${frontendBaseUrl}/reset-password?token=${token}&userId=${id}`;
       hashedOTP = await bcrypt.hash(token, 10);
 
@@ -235,8 +229,8 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
     const message = isForgotPassword
       ? "If an account exists for this email, a verification code has been sent."
       : subject === "In4MSME Account Verification"
-        ? `Verification OTP sent to ${email}.`
-        : `Email sent to ${email}.`;
+        ? "If verification is required, a code has been sent."
+        : "If an account exists for this email, a verification code has been sent.";
 
     const response = {
       success: true,
@@ -244,8 +238,8 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject }) => {
       message,
     };
 
-    // Avoid returning userId on forgot-password flows (user enumeration).
-    if (!isForgotPassword) {
+    // Avoid returning userId on enumeration-sensitive flows.
+    if (!isForgotPassword && !omitUserId) {
       response.userId = id;
     }
 

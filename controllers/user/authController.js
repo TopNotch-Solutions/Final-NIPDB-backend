@@ -160,10 +160,9 @@ exports.verifyOTP = async (req, res) => {
 
     if (!verifyUser) {
       await t.rollback();
-      return res.status(404).json({
+      return res.status(400).json({
         status: "FAILURE",
-        message:
-          "Account record doesn't exist or has been verified already. Please sign up or login.",
+        message: "Invalid or expired code",
       });
     }
 
@@ -175,10 +174,7 @@ exports.verifyOTP = async (req, res) => {
 
       return res.status(400).json({
         status: "FAILURE",
-        message:
-          role === "User"
-            ? "OTP has expired. Please request a new one."
-            : "Reset link has expired. Please request a new link.",
+        message: "Invalid or expired code",
       });
     }
 
@@ -187,7 +183,7 @@ exports.verifyOTP = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Invalid code passed. Check your inbox.",
+        message: "Invalid or expired code",
       });
     }
     if (role === "User") {
@@ -251,7 +247,7 @@ exports.verifyForgotOTP = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Invalid or expired verification code. Please try again.",
+        message: "Invalid or expired code",
       });
     }
 
@@ -262,7 +258,7 @@ exports.verifyForgotOTP = async (req, res) => {
       await t.commit();
       return res.status(400).json({
         status: "FAILURE",
-        message: "OTP has expired. Please request a new one.",
+        message: "Invalid or expired code",
       });
     }
 
@@ -271,7 +267,7 @@ exports.verifyForgotOTP = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Invalid code passed. Check your inbox.",
+        message: "Invalid or expired code",
       });
     }
 
@@ -338,21 +334,29 @@ exports.sendOTP = async (req, res) => {
       });
     }
 
+  const genericResponse = {
+    success: true,
+    statusCode: 200,
+    message:
+      "If an account exists for this email, a verification code has been sent.",
+  };
+
   try {
     const existingUser = await User.findOne({ where: { email } });
 
     if (!existingUser) {
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "No user found with the provided email.",
+      console.warn("[auth-probe] sendOTP for unknown email", {
+        ip: req.ip,
+        email,
       });
+      return res.status(200).json(genericResponse);
     }
 
     const subject = "In4MSME OTP Verification";
     await sendOTPVerification(
       { id: existingUser.id, email, role: "User" },
       res,
-      { subject }
+      { subject, omitUserId: true }
     );
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
@@ -397,18 +401,29 @@ exports.login = async (req, res) => {
 
     if (!user) {
       await t.rollback();
+      console.warn("[auth-probe] login unknown email", { ip: req.ip, email });
       return res.status(401).json({
         status: "FAILURE",
         message: "Invalid credentials. Please try again.",
       });
     }
 
+    // Migrated accounts must reset password; do not reveal that the email exists.
     if (user.isMigratedUser) {
       await t.rollback();
-      return res.status(400).json({
+      return res.status(401).json({
         status: "FAILURE",
-        message:
-          "Password reset required. Please tap 'Forgot Password' to set up a new password.",
+        message: "Invalid credentials. Please try again.",
+      });
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, user.password);
+    if (!isPasswordValid) {
+      await t.rollback();
+      console.warn("[auth-probe] login bad password", { ip: req.ip, email });
+      return res.status(401).json({
+        status: "FAILURE",
+        message: "Invalid credentials. Please try again.",
       });
     }
 
@@ -420,16 +435,7 @@ exports.login = async (req, res) => {
         res,
         { subject }
       );
-      return; 
-    }
-
-    const isPasswordValid = await bcrypt.compare(password, user.password);
-    if (!isPasswordValid) {
-      await t.rollback();
-      return res.status(401).json({
-        status: "FAILURE",
-        message: "Invalid credentials. Please try again.",
-      });
+      return;
     }
 
     if (user.role === "Admin" || user.role === "Super admin") {
@@ -544,42 +550,7 @@ exports.forgotPasswordEmail = async (req, res) => {
   }
 };
 
-exports.validateUser = async (req, res) => {
-  const { email } = req.params;
-  if (!email) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "User's email required fields",
-      });
-    }
-  const t = await sequelize.transaction();
-
-  try {
-   
-    const existingUser = await User.findOne({
-      where: { email, isMigratedUser: true },
-      transaction: t,
-    });
-
-    await t.commit();
-
-    return res.status(200).json({
-      status: "SUCCESS",
-      returningUser: Boolean(existingUser),
-      message: "Validation completed.",
-    });
-  } catch (error) {
-    sendErrorAlert(error, { source: "controllers/user/authController.js" });
-    await t.rollback(); // rollback if something fails
-    console.error("Validate User Error:", error);
-
-    return res.status(500).json({
-      status: "FAILURE",
-      message: "Something went wrong on our end. Please try again in a few moments.",
-      error: error.message,
-    });
-  }
-};
+// validate-user removed (F-03 user enumeration). Migrated users reset via forgot-password.
 
 exports.validateUpdate = async (req, res) => {
   const id = req.user?.id;

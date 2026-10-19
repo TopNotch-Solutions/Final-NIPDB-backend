@@ -13,6 +13,7 @@ const OTP = require("../../models/otpVerification");
 const { Op, where } = require("sequelize");
 const sendAdminOTPVerification = require("../../utils/web/sendAdminOtp");
 const sequelize = require("../../config/dbConfig");
+const getFrontendBaseUrl = require("../../utils/shared/frontendBaseUrl");
 require("dotenv").config();
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
 
@@ -61,8 +62,7 @@ exports.signup = async (req, res) => {
       contactNumber,
       role: formattedRole,
     });
-    console.log("here is the password", password)
-    const portalUrl = "http://41.219.71.112:8080";
+    const portalUrl = getFrontendBaseUrl();
 
     const mailOptions = {
       from: 'in4msme@nipdb.com',
@@ -191,8 +191,6 @@ exports.login = async (req, res) => {
         const existingUser = await bcrypt.compare(password, user.password);
 
         if (existingUser) {
-
-          console.log(user)
           await sendAdminOTPVerification(
             { id: user.id, email: user.email},
             res,
@@ -200,13 +198,21 @@ exports.login = async (req, res) => {
           );
         
         } else {
+          console.warn("[auth-probe] admin login bad password", {
+            ip: req.ip,
+            email,
+          });
           return res
-            .status(404)
+            .status(401)
             .json({ status: "FAILURE", message: "Invalid credentials",isAuthenticated: false });
         }
       } else {
+        console.warn("[auth-probe] admin login unknown email", {
+          ip: req.ip,
+          email,
+        });
         return res
-          .status(404)
+          .status(401)
           .json({ status: "FAILURE", message: "Invalid credentials",isAuthenticated: false });
       }
     } catch (error) {
@@ -233,9 +239,9 @@ exports.verifyAdminOTP = async (req, res) => {
   });
 
   if (!verifyUser) {
-    return res.status(404).json({
+    return res.status(400).json({
       status: "FAILURE",
-      message: "Invalid OTP",
+      message: "Invalid or expired code",
     });
   }
 
@@ -247,7 +253,7 @@ exports.verifyAdminOTP = async (req, res) => {
     });
     return res.status(400).json({
       status: "FAILURE",
-      message: "Code has expired. Please request again.",
+      message: "Invalid or expired code",
     });
   }
 
@@ -256,7 +262,7 @@ exports.verifyAdminOTP = async (req, res) => {
   if (!validOTP) {
     return res.status(400).json({
       status: "FAILURE",
-      message: "Invalid code. Please check your inbox.",
+      message: "Invalid or expired code",
     });
   }
 

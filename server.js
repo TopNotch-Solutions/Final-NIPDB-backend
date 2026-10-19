@@ -1,3 +1,6 @@
+require("dotenv").config();
+require("./utils/shared/muteConsoleInProd")();
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const sequelize = require("./config/dbConfig");
@@ -13,7 +16,6 @@ const Message = require("./models/directMessage");
 const AdminNotification = require("./models/adminNotifications");
 const Conversation = require("./models/conversation");
 const { Op } = require("sequelize");
-require("dotenv").config();
 
 const MsmeInformation = require("./models/msmeInformation");
 const MsmeAdditionalInfo = require("./models/msmeAdditionalInfo");
@@ -50,6 +52,7 @@ const FcmToken = require("./models/fcmToken");
 const BusinessReport = require("./models/businessReport");
 const { sendFcmToTokens, resolveNotificationImageUrl } = require("./utils/shared/fcmMessaging");
 const sendErrorAlert = require('./utils/shared/sendErrorAlert');
+const requestLogger = require('./middlewares/shared/requestLogger');
 
 const app = express();
 const server = http.createServer(app);
@@ -101,12 +104,13 @@ app.use(
   })
 );
 
+app.set("trust proxy", 1);
 app.use(generalLimiter);
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
+app.use(requestLogger);
 app.use(express.static("public"));
-app.set("trust proxy", 1);
 app.use(
   cors({
     origin: ["http://localhost:3000", "https://in4msmeportal.nipdb.com", "http://uat-api.erongored.com.na", "http://41.219.71.112:8080"],
