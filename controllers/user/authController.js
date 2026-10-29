@@ -80,7 +80,7 @@ exports.signup = async (req, res) => {
     return res.status(409).json({
       success: false,
       statusCode: 409,
-      message: "Unable to complete registration with the provided details.",
+      message: "User with this email already exists.",
     });
   }
 
@@ -101,7 +101,7 @@ exports.signup = async (req, res) => {
     return res.status(500).json({
       success: false,
       statusCode: 500,
-      message: "Unable to create new user at this time."
+      message: "We encountered an issue while creating your account. Please try again later.",
     });
   }
 
@@ -798,7 +798,7 @@ exports.forgotPasswordNewPassword = async (req, res) => {
       await t.rollback();
       return res.status(400).json({
         status: "FAILURE",
-        message: "Unable to update password with the provided details.",
+        message: "We could not find a user with the provided details. Please ensure you have entered the correct information.",
         data: null,
       });
     }
