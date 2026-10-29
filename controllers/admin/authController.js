@@ -46,7 +46,7 @@ exports.signup = async (req, res) => {
     if (existingUser) {
       return res.status(409).json({
         status: "FAILURE",
-        message: "Unable to complete registration with the provided details.",
+        message: "User with this email already exists.",
       });
     }
 
