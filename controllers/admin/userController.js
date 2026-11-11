@@ -114,6 +114,42 @@ exports.appUserCount = async (req, res) => {
       });
     }
 }
+exports.isDeactivated = async (req, res) => {
+  const { email} = req.params;
+
+  if (!email) {
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Email required fields",
+      });
+    }
+
+  try{
+
+    const existingUser = await User.findOne({ where: { email}});
+    if (!existingUser) {
+
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "No account matches the provided details.",
+      });
+    }
+
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "User status successfully retrieved",
+      status: existingUser.isDeactivated,
+    });
+
+  }catch (error) {
+    sendErrorAlert(error, { source: "controllers/admin/userController.js" });
+      res.status(500).json({
+        status: "FAILURE",
+        message: "Something went wrong on our end. Please try again in a few moments.",
+      });
+    }
+}
+
 exports.update = async (req, res) => {}
 exports.delete = async (req, res) => {}
 exports.role = async (req, res) => {}

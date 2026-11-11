@@ -53,6 +53,8 @@ const BusinessReport = require("./models/businessReport");
 const { sendFcmToTokens, resolveNotificationImageUrl } = require("./utils/shared/fcmMessaging");
 const sendErrorAlert = require('./utils/shared/sendErrorAlert');
 const requestLogger = require('./middlewares/shared/requestLogger');
+const policyUserRouter = require("./routes/userRoutes/policyRoute");
+const policyRouter = require("./routes/adminRoutes/policyRoute");
 
 const app = express();
 const server = http.createServer(app);
@@ -142,6 +144,8 @@ app.use("/user/mobile-images", mobileImageUserRouter);
 app.use("/opportunities/admin", opportunityAdminRouter);
 app.use("/opportunities/user", opportunityUserRouter);
 app.use("/directMessaging", directMessageUserRouter);
+app.use("/policy/admin", policyRouter)
+app.use("/policy/user", policyUserRouter);
 app.use("/businessFeedback", businessFeedbackUserRouter);
 app.use("/system", userAdminRouter);
 app.use("/*", (req, res) => {

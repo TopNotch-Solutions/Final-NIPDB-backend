@@ -187,7 +187,7 @@ exports.verifyOTP = async (req, res) => {
       });
     }
     if (role === "User") {
-      await User.update({ verified: true }, { where: { id: userId }, transaction: t });
+      await User.update({ verified: true, isDeactivated: false }, { where: { id: userId }, transaction: t });
     }
 
     await OTP.destroy({ where: { userId, role }, transaction: t });
@@ -414,6 +414,14 @@ exports.login = async (req, res) => {
       return res.status(401).json({
         status: "FAILURE",
         message: "Invalid credentials. Please try again.",
+      });
+    }
+
+    if(user.isDeactivated){
+      await t.rollback();
+      return res.status(401).json({
+        status: "FAILURE",
+        message: "We couldn't find an account associated with that information.",
       });
     }
 
@@ -1575,6 +1583,43 @@ exports.removeLoggedInDeviceToken = async (req, res) => {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Remove Logged-In Device Token Error:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+exports.deactivate = async (req, res) => {
+  const userId = req.user.id;
+  
+  const t = await sequelize.transaction();
+  try {
+    
+    const existingUser = await User.findOne({
+      where: { id: userId },
+      transaction: t,
+    });
+    if (!existingUser) {
+      await t.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "User not found!",
+      });
+    }
+
+    await User.update({isDeactivated: true}, { where: { id: userId }, transaction: t });
+
+    await t.commit();
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: "Account has been deleted.",
+    });
+  } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
+    await t.rollback();
+    console.error("Deactivating user account:", error);
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal Server Error",

@@ -27,6 +27,7 @@ authUserRouter.get('/test/push', authController.test);
 authUserRouter.get('/data-token', authController.dataToken); 
 
 //authUserRouter.put('/fcm-token', authController.fcmToken) // This endpoint is no more need because the tokens are being stored in other table
+authUserRouter.put('/delete-account', tokenAuthMiddleware, checkUser, authController.deactivate)
 authUserRouter.put('/update-details', tokenAuthMiddleware, checkUser, profileUploadMiddleware.uploadSingle, authController.updateDetails);
 authUserRouter.put('/update-profile-image', tokenAuthMiddleware, checkUser, profileUploadMiddleware.uploadSingle, authController.updateProfileImage)
 authUserRouter.put('/change-password', tokenAuthMiddleware, checkUser, authController.changePassword);

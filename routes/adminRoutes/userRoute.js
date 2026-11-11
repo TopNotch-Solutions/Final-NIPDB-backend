@@ -11,6 +11,7 @@ userAdminRouter.get('/all/super-admin-count',tokenAuthMiddleware, checkAdmin,use
 userAdminRouter.get('/all/admin-count', tokenAuthMiddleware, checkAdmin,userAdminController.allAdmincount);
 userAdminRouter.get('/all/app-user-count',tokenAuthMiddleware, checkAdmin, userAdminController.appUserCount);
 
+userAdminRouter.get('/is-account-deactivated/:email', userAdminController.isDeactivated);
 
 userAdminRouter.put('/update',tokenAuthMiddleware, checkAdmin, userAdminController.update);
 userAdminRouter.delete('/delete',tokenAuthMiddleware, checkAdmin, userAdminController.delete);

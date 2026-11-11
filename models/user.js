@@ -45,7 +45,12 @@ const User = sequelize.define(
             type: DataTypes.BOOLEAN,
             allowNull: false,
             defaultValue: false,
-          }
+          },
+          isDeactivated: {
+            type: DataTypes.BOOLEAN,
+            allowNull: false,
+            defaultValue: false,
+          },
     },{
         timestamps: false 
       }
