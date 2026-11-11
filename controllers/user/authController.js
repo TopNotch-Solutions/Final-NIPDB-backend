@@ -212,7 +212,7 @@ exports.verifyOTP = async (req, res) => {
 };
 
 exports.verifyForgotOTP = async (req, res) => {
-  const { otp, userId, email } = req.body;
+  const { otp, email } = req.body;
   if (!otp) {
       return res.status(400).json({
         status: "FAILURE",
@@ -220,28 +220,38 @@ exports.verifyForgotOTP = async (req, res) => {
       });
     }
 
-    if (!userId && !email) {
+    if (!email) {
       return res.status(400).json({
         status: "FAILURE",
-        message: "Email or User ID required fields",
+        message: "User ID required fields",
       });
     }
+
   const t = await sequelize.transaction();
 
   try {
-    let resolvedUserId = userId;
-    if (!resolvedUserId && email) {
-      const existingUser = await User.findOne({
+    // 1. Find the user by email to get their ID
+    const existingUser = await User.findOne({
         where: { email },
-        attributes: ["id"],
         transaction: t,
+    });
+
+    // Optional: Return a generic response or specific error if user doesn't exist
+    if (!existingUser) {
+      await t.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "Invalid or expired code",
       });
-      resolvedUserId = existingUser?.id;
     }
 
-    const verifyUser = resolvedUserId
-      ? await OTP.findOne({ where: { userId: resolvedUserId }, transaction: t })
-      : null;
+    const resolvedUserId = existingUser.id;
+
+    // 2. Query the OTP record using the resolved user ID
+    const verifyUser = await OTP.findOne({ 
+      where: { userId: resolvedUserId }, 
+      transaction: t 
+    });
 
     if (!verifyUser) {
       await t.rollback();
