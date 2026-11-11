@@ -287,6 +287,7 @@ exports.verifyForgotOTP = async (req, res) => {
     return res.status(200).json({
       status: "VERIFIED",
       message: "OTP verified successfully.",
+      userId: existingUser.id
     });
 
   } catch (error) {
