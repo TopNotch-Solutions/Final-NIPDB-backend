@@ -55,6 +55,7 @@ const sendErrorAlert = require('./utils/shared/sendErrorAlert');
 const requestLogger = require('./middlewares/shared/requestLogger');
 const policyUserRouter = require("./routes/userRoutes/policyRoute");
 const policyRouter = require("./routes/adminRoutes/policyRoute");
+const { startAccountPurgeScheduler } = require("./utils/shared/accountLifecycle");
 
 const app = express();
 const server = http.createServer(app);
@@ -1313,6 +1314,7 @@ sequelize
   .sync()
   .then(() => {
     console.log("Database connected");
+    startAccountPurgeScheduler();
     const PORT = process.env.PORT;
     server.listen(PORT, () => {
       console.log(`Server is running on port ${PORT}`);

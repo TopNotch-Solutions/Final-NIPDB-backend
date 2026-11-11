@@ -138,7 +138,9 @@ exports.isDeactivated = async (req, res) => {
     return res.status(200).json({
       status: "SUCCESS",
       message: "User status successfully retrieved",
-      status: existingUser.isDeactivated,
+      isDeactivated: existingUser.isDeactivated,
+      isDeleted: existingUser.isDeleted,
+      deletedAt: existingUser.deletedAt,
     });
 
   }catch (error) {

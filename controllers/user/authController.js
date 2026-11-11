@@ -23,6 +23,13 @@ const sequelize = require("../../config/dbConfig");
 const { removeInvalidFcmToken } = require("../../utils/shared/fcmTokenCleanup");
 const { newPassword } = require("../admin/authController");
 const sendErrorAlert = require('../../utils/shared/sendErrorAlert');
+const {
+  ACCOUNT_RECOVERY_DAYS,
+  isWithinRecoveryWindow,
+  softDeleteUserAndBusinesses,
+  restoreUserAndBusinesses,
+  hardDeleteUserAndBusinesses,
+} = require("../../utils/shared/accountLifecycle");
 
 exports.signup = async (req, res) => {
   let { firstName, lastName, email, password } = req.body;
@@ -64,7 +71,25 @@ exports.signup = async (req, res) => {
   const existingUser = await User.findOne({ where: { email }, transaction: t });
 
   if (existingUser) {
-    if (!existingUser.verified) {
+    if (existingUser.isDeleted) {
+      if (isWithinRecoveryWindow(existingUser.deletedAt)) {
+        await t.rollback();
+        const subject = "In4MSME Account Recovery";
+        await sendOTPVerification(
+          {
+            id: existingUser.id,
+            email: existingUser.email,
+            role: existingUser.role || "User",
+          },
+          res,
+          { subject }
+        );
+        return;
+      }
+
+      // Recovery window expired: purge old data, then allow a fresh signup in this transaction.
+      await hardDeleteUserAndBusinesses(existingUser, t);
+    } else if (!existingUser.verified) {
       await t.rollback();
       const subject = "In4MSME OTP Verification";
 
@@ -74,14 +99,14 @@ exports.signup = async (req, res) => {
         { subject }
       );
       return;
+    } else {
+      await t.rollback();
+      return res.status(409).json({
+        success: false,
+        statusCode: 409,
+        message: "User with this email already exists.",
+      });
     }
-
-    await t.rollback();
-    return res.status(409).json({
-      success: false,
-      statusCode: 409,
-      message: "User with this email already exists.",
-    });
   }
 
   const hashedPassword = await bcrypt.hash(password, 10);
@@ -186,8 +211,42 @@ exports.verifyOTP = async (req, res) => {
         message: "Invalid or expired code",
       });
     }
+
+    let responseMessage =
+      role === "User" ? "User verified successfully." : "Link is valid.";
+
     if (role === "User") {
-      await User.update({ verified: true, isDeactivated: false }, { where: { id: userId }, transaction: t });
+      const existingUser = await User.findOne({
+        where: { id: userId },
+        transaction: t,
+      });
+
+      if (!existingUser) {
+        await t.rollback();
+        return res.status(404).json({
+          status: "FAILURE",
+          message: "User not found!",
+        });
+      }
+
+      if (existingUser.isDeleted) {
+        if (!isWithinRecoveryWindow(existingUser.deletedAt)) {
+          await t.rollback();
+          return res.status(410).json({
+            status: "FAILURE",
+            message: `Account recovery window of ${ACCOUNT_RECOVERY_DAYS} days has expired.`,
+          });
+        }
+
+        await restoreUserAndBusinesses(userId, t);
+        responseMessage =
+          "Account restored successfully. You can now log in.";
+      } else {
+        await User.update(
+          { verified: true, isDeactivated: false },
+          { where: { id: userId }, transaction: t }
+        );
+      }
     }
 
     await OTP.destroy({ where: { userId, role }, transaction: t });
@@ -196,7 +255,7 @@ exports.verifyOTP = async (req, res) => {
 
     return res.status(200).json({
       status: "VERIFIED",
-      message: role === "User" ? "User verified successfully." : "Link is valid.",
+      message: responseMessage,
     });
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
@@ -363,7 +422,16 @@ exports.sendOTP = async (req, res) => {
       return res.status(200).json(genericResponse);
     }
 
-    const subject = "In4MSME OTP Verification";
+    if (
+      existingUser.isDeleted &&
+      !isWithinRecoveryWindow(existingUser.deletedAt)
+    ) {
+      return res.status(200).json(genericResponse);
+    }
+
+    const subject = existingUser.isDeleted
+      ? "In4MSME Account Recovery"
+      : "In4MSME OTP Verification";
     await sendOTPVerification(
       { id: existingUser.id, email, role: "User" },
       res,
@@ -428,11 +496,28 @@ exports.login = async (req, res) => {
       });
     }
 
-    if(user.isDeactivated){
+    if (user.isDeleted) {
       await t.rollback();
-      return res.status(401).json({
+      if (isWithinRecoveryWindow(user.deletedAt)) {
+        return res.status(403).json({
+          status: "FAILURE",
+          message: `This account is deleted. Verify the OTP sent to your email within ${ACCOUNT_RECOVERY_DAYS} days to restore it.`,
+          recoverable: true,
+        });
+      }
+      return res.status(410).json({
         status: "FAILURE",
-        message: "We couldn't find an account associated with that information.",
+        message: "This account has been permanently deleted.",
+        recoverable: false,
+      });
+    }
+
+    if (user.isDeactivated) {
+      await t.rollback();
+      return res.status(403).json({
+        status: "FAILURE",
+        message: "This account is deactivated. Contact support or verify OTP to reactivate.",
+        deactivated: true,
       });
     }
 
@@ -544,6 +629,16 @@ exports.forgotPasswordEmail = async (req, res) => {
     const subject = "In4MSME Forgot Password Verification";
 
     if (existingUser) {
+      if (existingUser.isDeleted) {
+        // Deleted accounts must be restored via verifyOTP, not password reset.
+        return res.status(200).json({
+          success: true,
+          statusCode: 200,
+          message:
+            "If an account exists for this email, a verification code has been sent.",
+        });
+      }
+
       await sendOTPVerification(
         { id: existingUser.id, email, role: "User" },
         res,
@@ -1437,55 +1532,8 @@ exports.validateDeviceTokenLoggedIn = async (req, res) => {
   }
 };
 
-exports.delete = async (req, res) => {
-   const userId = req.user.id;
-    if (!userId) {
-      return res.status(400).json({
-        status: "FAILURE",
-        message: "User ID required fields",
-      });
-    }
-  const t = await sequelize.transaction();
-  try {
-   
-    const existingUser = await User.findOne({ where: { id: userId }, transaction: t });
-    if (!existingUser) {
-      await t.rollback();
-      return res.status(404).json({
-        status: "FAILURE",
-        message: "User not found!",
-      });
-    }
-
-    if (existingUser.profileImage) {
-      const profileImagePath = path.join(
-        __dirname,
-        "../../public/users",
-        existingUser.profileImage
-      );
-      if (fs.existsSync(profileImagePath)) {
-        fs.unlinkSync(profileImagePath);
-      }
-    }
-
-    await User.destroy({ where: { id: userId }, transaction: t });
-
-    await t.commit();
-    return res.status(200).json({
-      status: "SUCCESS",
-      message: "User successfully deleted!",
-    });
-  } catch (error) {
-    sendErrorAlert(error, { source: "controllers/user/authController.js" });
-    await t.rollback();
-    console.error("User Deletion Error:", error);
-    return res.status(500).json({
-      status: "FAILURE",
-      message: "Something went wrong on our end. Please try again in a few moments.",
-      error: error.message,
-    });
-  }
-};
+// Soft-delete with 3-month OTP recovery (same behaviour as deleteAccount).
+exports.delete = async (req, res) => exports.deleteAccount(req, res);
 
 exports.removeDeviceToken = async (req, res) => {
      const { deviceToken, status } = req.body;
@@ -1604,10 +1652,9 @@ exports.removeLoggedInDeviceToken = async (req, res) => {
 
 exports.deactivate = async (req, res) => {
   const userId = req.user.id;
-  
+
   const t = await sequelize.transaction();
   try {
-    
     const existingUser = await User.findOne({
       where: { id: userId },
       transaction: t,
@@ -1620,17 +1667,74 @@ exports.deactivate = async (req, res) => {
       });
     }
 
-    await User.update({isDeactivated: true}, { where: { id: userId }, transaction: t });
+    if (existingUser.isDeleted) {
+      await t.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "This account is already deleted.",
+      });
+    }
+
+    await User.update(
+      { isDeactivated: true },
+      { where: { id: userId }, transaction: t }
+    );
+    await FcmToken.destroy({ where: { userId }, transaction: t });
 
     await t.commit();
     return res.status(200).json({
       status: "SUCCESS",
-      message: "Account has been deleted.",
+      message: "Account has been deactivated.",
     });
   } catch (error) {
     sendErrorAlert(error, { source: "controllers/user/authController.js" });
     await t.rollback();
     console.error("Deactivating user account:", error);
+    return res.status(500).json({
+      status: "FAILURE",
+      message: "Internal Server Error",
+      error: error.message,
+    });
+  }
+};
+
+exports.deleteAccount = async (req, res) => {
+  const userId = req.user.id;
+
+  const t = await sequelize.transaction();
+  try {
+    const existingUser = await User.findOne({
+      where: { id: userId },
+      transaction: t,
+    });
+    if (!existingUser) {
+      await t.rollback();
+      return res.status(404).json({
+        status: "FAILURE",
+        message: "User not found!",
+      });
+    }
+
+    if (existingUser.isDeleted) {
+      await t.rollback();
+      return res.status(400).json({
+        status: "FAILURE",
+        message: "This account is already deleted.",
+      });
+    }
+
+    await softDeleteUserAndBusinesses(userId, t);
+
+    await t.commit();
+    return res.status(200).json({
+      status: "SUCCESS",
+      message: `Account deleted. You can restore it within ${ACCOUNT_RECOVERY_DAYS} days by verifying OTP.`,
+      recoveryDays: ACCOUNT_RECOVERY_DAYS,
+    });
+  } catch (error) {
+    sendErrorAlert(error, { source: "controllers/user/authController.js" });
+    await t.rollback();
+    console.error("Deleting user account:", error);
     return res.status(500).json({
       status: "FAILURE",
       message: "Internal Server Error",
