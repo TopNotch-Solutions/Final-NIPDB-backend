@@ -247,6 +247,8 @@ const sendOTPVerification = async ({ id, email, role }, res, { subject, omitUser
       response.data = { verify: true };
     }
 
+    response.userId = id;
+
     return res.status(200).json(response);
 
   } catch (error) {
